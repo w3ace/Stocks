@@ -39,6 +39,8 @@ def main():
                 hourly_data,daily_data = fetch_stock(symbol, period=args.period)
 
             # Print stock data information
+            hourly_data,daily_data = analyze_stock(hourly_data,daily_data)
+
             print(f"Stock data info for {symbol}:")
             print(hourly_data)
             print(daily_data)

@@ -11,7 +11,7 @@ logging.basicConfig(filename='fetch_stock_info.log', level=logging.ERROR,
 def fetch_and_save_stock_info(ticker):
     try:
         # Check if the .info file already exists
-        filename = f"{ticker}.info"
+        filename = f"Datasets/{ticker}.info"
         if os.path.exists(filename):
             print(f"Info file for {ticker} already exists. Skipping...")
             return
@@ -33,7 +33,7 @@ def fetch_and_save_stock_info(ticker):
 
 def main():
     # Load the list of stocks from the CSV file
-    csv_file = 'us_stocks.csv'
+    csv_file = 'Datasets/us_stocks.csv'
     stocks_df = pd.read_csv(csv_file)
 
     # Ensure that the ticker symbols are treated as strings

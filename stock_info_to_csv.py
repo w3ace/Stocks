@@ -20,14 +20,15 @@ def combine_info_to_csv(input_dir, output_file):
                 # Create a dictionary for storing data from each file
                 info_dict = {}
                 for line in lines:
-                    # Split each line into key-value pairs
-                    key, value = line.strip().split(': ', 1)
-                    info_dict[key] = value
+                    # Check if the line can be split into a key-value pair
+                    if ': ' in line:
+                        key, value = line.strip().split(': ', 1)
+                        info_dict[key] = value
                 
                 # Check if exchange is PNK (OTC Markets Group) or market cap is less than 1B
                 if (info_dict.get('exchange') != 'PNK' and 
                     info_dict.get('marketCap') is not None and 
-                    float(info_dict.get('marketCap', 0)) >= 1e9):  # Ensure market cap is >= 1 billion
+                    float(info_dict.get('marketCap', 0).replace(',', '')) >= 1e9):  # Ensure market cap is >= 1 billion
                     # Append the dictionary to the data list
                     data.append(info_dict)
 

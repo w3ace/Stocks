@@ -39,6 +39,16 @@ def plot_stock(symbol, daily_data, hourly_data):
     # Add a legend to the first subplot
     ax1.legend()
 
+    # Add a table for first hour classifications
+    first_hour_counts = daily_data['First_Hour_Classification'].value_counts().to_frame()
+    table_data = first_hour_counts.T
+    table_data.columns.name = None
+
+    table = ax1.table(cellText=table_data.values, colLabels=table_data.columns, cellLoc='center', loc='top', bbox=[0.2, 1.05, 0.6, 0.15])
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 1.5)
+
     # Plot MACD and Signal Line on the second subplot
     ax2 = fig.add_subplot(grid_spec[1])
     ax2.plot(daily_data['Date'], daily_data['MACD'], label='MACD', color='purple', linestyle='-', linewidth=2)

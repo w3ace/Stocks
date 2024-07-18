@@ -1,7 +1,6 @@
 import argparse
 import pandas as pd
-import matplotlib.pyplot as plt  # Importing matplotlib.pyplot
-
+import matplotlib.pyplot as plt
 from fetch_stock import fetch_stock
 from analyze_stock import analyze_stock
 from plot_stock import plot_stock
@@ -28,25 +27,20 @@ def main():
 
     output_path = 'stock_analysis.pdf'
     
-    # Create a PDF document
     with PdfPages(output_path) as pdf:
         for symbol in args.symbols:
             if start_date and end_date:
-                # Fetch stock data based on the date range
-                hourly_data,daily_data = fetch_stock(symbol, start_date=start_date, end_date=end_date)
+                hourly_data, daily_data = fetch_stock(symbol, start_date=start_date, end_date=end_date)
             else:
-                # Fetch stock data based on the period
-                hourly_data,daily_data = fetch_stock(symbol, period=args.period)
-
-            # Print stock data information
-            hourly_data,daily_data = analyze_stock(hourly_data,daily_data)
+                hourly_data, daily_data = fetch_stock(symbol, period=args.period)
 
             print(f"Stock data info for {symbol}:")
             print(hourly_data)
             print(daily_data)
 
-            # Plot stock data and save the plot to the PDF
-            fig = plot_stock(symbol,daily_data,hourly_data)
+            hourly_data, daily_data = analyze_stock(hourly_data, daily_data)
+
+            fig = plot_stock(symbol, daily_data, hourly_data)
             pdf.savefig(fig)
             plt.close(fig)
 

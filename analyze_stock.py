@@ -49,17 +49,18 @@ def analyze_stock(hourly_data, daily_data):
     daily_data['First_Hour_Close_Change'] = (daily_data['First_Hour_Close'] - daily_data['First_Hour_Open']) / daily_data['First_Hour_Open'] * 100
 
     conditions = [
-        daily_data['First_Hour_Range'] > 0.10 * daily_data['Open'],
-        daily_data['First_Hour_Close_Change'] > 5,
-        daily_data['First_Hour_Close_Change'] < -5,
-        daily_data['First_Hour_Range'] > 0.05 * daily_data['Open']
+        daily_data['First_Hour_Range'] > 0.05 * daily_data['Open'],
+        daily_data['First_Hour_Close_Change'] > 2.5,
+        daily_data['First_Hour_Close_Change'] < -2.5,
+        daily_data['First_Hour_Range'] > 0.025 * daily_data['Open']
     ]
     choices = [
-        'First Hour Range > 10%',
-        'First Hour Close > 5% higher than Open',
-        'First Hour Close > 5% lower than Open',
-        'First Hour Range > 5%'
+        'First Hour Range > 5%',
+        'First Hour Close > 2.5% higher than Open',
+        'First Hour Close > 2.5% lower than Open',
+        'First Hour Range > 2.5%'
     ]
     daily_data['First_Hour_Classification'] = np.select(conditions, choices, default='Other')
 
     return hourly_data, daily_data
+

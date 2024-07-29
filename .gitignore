@@ -1,6 +1,7 @@
 
 /__pycache__
 /Datasets
+/Ticker
 *.pdf
 *.log
 *.csv

@@ -5,7 +5,6 @@ import finnhub
 finnhub_client = finnhub.Client(api_key="cqa6h0hr01qkfes2n7ogcqa6h0hr01qkfes2n7p0")
 
 
-
 # Fetch all stock symbols for the US market, which includes NYSE
 all_us_stocks = finnhub_client.stock_symbols('US')
 

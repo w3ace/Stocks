@@ -33,8 +33,14 @@ def check_and_fetch_info(ticker):
     market_cap = get_market_cap(ticker)
     days_to_check = get_days_to_check(market_cap)
 
-    # Construct the file path
-    first_letter = ticker[0].upper()
+    # Construct the file path 
+    if isinstance(ticker, str):
+        first_letter = ticker[0].upper()
+    else:
+        # Handle the case where ticker is not a string
+        print(f"Unexpected type for ticker: {type(ticker)}")
+        return
+
     directory = f"Datasets/Ticker/{first_letter}"
     filename = f"{directory}/{ticker}.info"
 
@@ -70,13 +76,17 @@ def fetch_info(ticker):
             f.write(str(info))
         
         print(f"Fetched and saved info for {ticker}")
+        time.sleep(1)
     except Exception as e:
         logging.error(f"Error fetching info for {ticker}: {e}")
 
 def main():
     # Example: Load a list of tickers from a CSV file
     df = pd.read_csv('Datasets/us_stocks.csv')
-    tickers = df['Symbol'].tolist()
+
+    print(df.columns)
+
+    tickers = df['symbol'].tolist()
 
     for ticker in tickers:
         check_and_fetch_info(ticker)

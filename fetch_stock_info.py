@@ -17,9 +17,7 @@ def get_market_cap(ticker):
         return 0
 
 def get_days_to_check(market_cap):
-    if market_cap < 1_000_000:
-        return 5
-    elif market_cap < 100_000_000:
+    if market_cap < 100_000_000:
         return 4
     elif market_cap < 250_000_000:
         return 3
@@ -29,39 +27,31 @@ def get_days_to_check(market_cap):
         return 1
     return 5
 
-def check_and_fetch_info(ticker):
+def check_and_fetch_info(ticker, file_mod_times):
     market_cap = get_market_cap(ticker)
     days_to_check = get_days_to_check(market_cap)
 
-    # Construct the file path 
     if isinstance(ticker, str):
         first_letter = ticker[0].upper()
     else:
-        # Handle the case where ticker is not a string
         print(f"Unexpected type for ticker: {type(ticker)}")
         return
 
     directory = f"Datasets/Ticker/{first_letter}"
     filename = f"{directory}/{ticker}.info"
 
-    # Create the directory if it does not exist
-    os.makedirs(directory, exist_ok=True)
+    # os.makedirs(directory, exist_ok=True)
 
-    # Check if the file exists and its modification time
-    if os.path.exists(filename):
-        # Get the current time and the file's last modification time
-        current_time = time.time()
-        file_mod_time = os.path.getmtime(filename)
-        
-        # Calculate the age of the file
+    current_time = time.time()
+
+    if filename in file_mod_times:
+        file_mod_time = file_mod_times[filename]
         file_age_days = (current_time - file_mod_time) / (60 * 60 * 24)
-        
-        # Check if the file is older than the days_to_check
+
         if file_age_days <= days_to_check:
             print(f"Info file for {ticker} is up-to-date (less than {days_to_check} days old). Skipping...")
             return
 
-    # Fetch the info since the file doesn't exist or is older than the days_to_check
     fetch_info(ticker)
 
 def fetch_info(ticker):
@@ -71,25 +61,34 @@ def fetch_info(ticker):
         first_letter = ticker[0].upper()
         directory = f"Datasets/Ticker/{first_letter}"
         filename = f"{directory}/{ticker}.info"
-        
+
         with open(filename, 'w') as f:
             f.write(str(info))
-        
+
         print(f"Fetched and saved info for {ticker}")
         time.sleep(1)
     except Exception as e:
         logging.error(f"Error fetching info for {ticker}: {e}")
 
+def get_file_mod_times(base_directory):
+    file_mod_times = {}
+    for root, _, files in os.walk(base_directory):
+        for file in files:
+            filepath = os.path.join(root, file)
+            file_mod_times[filepath.replace("\\","/")] = os.path.getmtime(filepath)
+    return file_mod_times
+
 def main():
-    # Example: Load a list of tickers from a CSV file
     df = pd.read_csv('Datasets/us_stocks.csv')
-
     print(df.columns)
-
     tickers = df['symbol'].tolist()
 
+    base_directory = 'Datasets/Ticker'
+    file_mod_times = get_file_mod_times(base_directory)
+    print(file_mod_times)
+
     for ticker in tickers:
-        check_and_fetch_info(ticker)
+        check_and_fetch_info(ticker, file_mod_times)
 
 if __name__ == "__main__":
     main()

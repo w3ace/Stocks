@@ -1,10 +1,13 @@
 import argparse
+import logging
 import pandas as pd
 import matplotlib.pyplot as plt
 from fetch_stock import fetch_stock
 from analyze_stock import analyze_stock
 from plot_stock import plot_stock
 from matplotlib.backends.backend_pdf import PdfPages
+
+logging.basicConfig(level=logging.INFO)
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze stock data for opening and closing gaps.')
@@ -35,6 +38,10 @@ def main():
                 hourly_data, daily_data = fetch_stock(symbol, start_date=start_date, end_date=end_date)
             else:
                 hourly_data, daily_data = fetch_stock(symbol, period=args.period)
+
+            if hourly_data is None or daily_data is None:
+                logging.warning(f"Skipping {symbol} due to download failure")
+                continue
 
             print(f"Stock data info for {symbol}:")
             print(hourly_data)

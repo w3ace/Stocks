@@ -49,6 +49,12 @@ def main():
 
             hourly_data, daily_data = analyze_stock(hourly_data, daily_data)
 
+            # Display gap between previous close and today's open
+            gap_cols = ['Date', 'PrevClose_Open_Gap', 'PrevClose_Open_Gap_Pct']
+            if set(gap_cols).issubset(daily_data.columns):
+                print("Gap from previous close to today's open:")
+                print(daily_data[gap_cols].dropna())
+
             fig = plot_stock(symbol, daily_data, hourly_data)
             pdf.savefig(fig)
             plt.close(fig)

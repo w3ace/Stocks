@@ -21,9 +21,11 @@ def main():
         start_date = pd.to_datetime(args.start, format='%m-%d-%Y')
         end_date = pd.to_datetime(args.end, format='%m-%d-%Y')
     elif args.period:
-        if not args.period:
-            print("Please provide either a date range (start and end) or a period.")
-            return
+        # period already supplied via argparse
+        pass
+    else:
+        print("Please provide either a date range (start and end) or a period.")
+        return
 
     output_path = 'stock_analysis.pdf'
     

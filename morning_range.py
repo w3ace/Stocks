@@ -1,8 +1,7 @@
 import argparse
-import os
 import pandas as pd
 from datetime import timedelta
-import yfinance as yf
+from fetch_stock import fetch_stock
 
 
 def fetch_intraday(
@@ -10,72 +9,27 @@ def fetch_intraday(
     start: pd.Timestamp,
     end: pd.Timestamp,
     interval: str = "1m",
-    dataset_dir: str = "Datasets",
 ) -> pd.DataFrame:
-    """Fetch intraday data for the ticker between start and end.
+    """Fetch intraday data for ``ticker`` using :func:`fetch_stock`."""
 
-    First attempts to load local data from ``dataset_dir``. Only downloads
-    missing data using :func:`yf.download` as a fallback.
-    """
-
-    frames = []
-    first_letter = ticker[0].upper()
-    all_dates = pd.date_range(start=start.normalize(), end=end.normalize())
-    missing = False
-
-    for day in all_dates:
-        date_str = day.strftime("%Y%m%d")
-        local_file = os.path.join(
-            dataset_dir,
-            "Ticker",
-            "Daily",
-            date_str,
-            first_letter,
-            ticker,
-            f"{ticker}.bars",
-        )
-        if os.path.exists(local_file):
-            df_day = pd.read_csv(local_file, index_col=0, parse_dates=True)
-            if not isinstance(df_day.index, pd.DatetimeIndex):
-                df_day.index = pd.to_datetime(df_day.index, errors="coerce")
-            if df_day.index.tz is None:
-                df_day.index = df_day.index.tz_localize("US/Eastern")
-            df_day = df_day.tz_convert("UTC")
-            frames.append(df_day)
-        else:
-            missing = True
-
-    if missing:
-        try:
-            online = yf.download(
-                ticker,
-                start=start.strftime("%Y-%m-%d"),
-                end=(end + timedelta(days=1)).strftime("%Y-%m-%d"),
-                interval=interval,
-                progress=False,
-            )
-        except Exception as exc:
-            print(f"Failed download for {ticker}: {exc}")
-            online = pd.DataFrame()
-
-        if not online.empty:
-            if isinstance(online.columns, pd.MultiIndex):
-                online.columns = online.columns.get_level_values(0)
-            if not isinstance(online.index, pd.DatetimeIndex):
-                online.index = pd.to_datetime(online.index, errors="coerce")
-            if online.index.tz is None:
-                online.index = online.index.tz_localize("UTC")
-            online = online.tz_convert("UTC")
-            frames.append(online)
-
-    if not frames:
+    data, _ = fetch_stock(ticker, start_date=start, end_date=end, interval=interval)
+    if data is None or data.empty:
         return pd.DataFrame()
 
-    df = pd.concat(frames)
-    df.sort_index(inplace=True)
-    df = df.loc[(df.index >= start) & (df.index <= end + timedelta(days=1))]
-    df = df[~df.index.duplicated(keep="first")]
-    return df
+    if "Datetime" in data.columns:
+        idx = pd.to_datetime(data["Datetime"], errors="coerce")
+    else:
+        idx = pd.to_datetime(data.index, errors="coerce")
+
+    if idx.tz is None:
+        idx = idx.tz_localize("UTC")
+    data.index = idx
+    if "Datetime" in data.columns:
+        data = data.drop(columns=["Datetime"])
+
+    data.sort_index(inplace=True)
+    data = data.loc[(data.index >= start) & (data.index <= end + timedelta(days=1))]
+    return data
 
 
 def calculate_morning_range(df: pd.DataFrame) -> pd.DataFrame:

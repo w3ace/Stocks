@@ -66,7 +66,7 @@ def fetch_info(ticker):
             f.write(str(info))
 
         print(f"Fetched and saved info for {ticker}")
-        time.sleep(1)
+        time.sleep(0.2)
     except Exception as e:
         logging.error(f"Error fetching info for {ticker}: {e}")
 
@@ -80,12 +80,10 @@ def get_file_mod_times(base_directory):
 
 def main():
     df = pd.read_csv('Datasets/us_stocks.csv')
-    print(df.columns)
     tickers = df['symbol'].tolist()
 
     base_directory = 'Datasets/Ticker'
     file_mod_times = get_file_mod_times(base_directory)
-    print(file_mod_times)
 
     for ticker in tickers:
         check_and_fetch_info(ticker, file_mod_times)

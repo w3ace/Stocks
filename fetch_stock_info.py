@@ -28,6 +28,7 @@ def get_days_to_check(market_cap):
     return 5
 
 def check_and_fetch_info(ticker, file_mod_times):
+    print(f"Working on {ticker}")
     market_cap = get_market_cap(ticker)
     days_to_check = get_days_to_check(market_cap)
 

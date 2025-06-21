@@ -17,9 +17,9 @@ def fetch_intraday(
         return pd.DataFrame()
 
     if "Datetime" in data.columns:
-        idx = pd.to_datetime(data["Datetime"], errors="coerce")
+        idx = pd.DatetimeIndex(pd.to_datetime(data["Datetime"], errors="coerce"))
     else:
-        idx = pd.to_datetime(data.index, errors="coerce")
+        idx = pd.DatetimeIndex(pd.to_datetime(data.index, errors="coerce"))
 
     if idx.tz is None:
         idx = idx.tz_localize("UTC")

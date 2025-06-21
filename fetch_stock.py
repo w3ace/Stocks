@@ -1,5 +1,6 @@
 import logging
 import yfinance as yf
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 
@@ -33,6 +34,11 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
         if hourly_data.empty or daily_data.empty:
             logging.warning(f"No data returned for {symbol}")
             return None, None
+
+        if isinstance(hourly_data.columns, pd.MultiIndex):
+            hourly_data.columns = hourly_data.columns.get_level_values(0)
+        if isinstance(daily_data.columns, pd.MultiIndex):
+            daily_data.columns = daily_data.columns.get_level_values(0)
 
         hourly_data.reset_index(inplace=True)
         daily_data.reset_index(inplace=True)

@@ -36,6 +36,8 @@ def fetch_intraday(
         )
         if os.path.exists(local_file):
             df_day = pd.read_csv(local_file, index_col=0, parse_dates=True)
+            if not isinstance(df_day.index, pd.DatetimeIndex):
+                df_day.index = pd.to_datetime(df_day.index, errors="coerce")
             if df_day.index.tz is None:
                 df_day.index = df_day.index.tz_localize("US/Eastern")
             df_day = df_day.tz_convert("UTC")
@@ -44,18 +46,27 @@ def fetch_intraday(
             missing = True
 
     if missing:
-        online = yf.download(
-            ticker,
-            start=start.strftime("%Y-%m-%d"),
-            end=(end + timedelta(days=1)).strftime("%Y-%m-%d"),
-            interval=interval,
-        )
-        if isinstance(online.columns, pd.MultiIndex):
-            online.columns = online.columns.get_level_values(0)
-        if online.index.tz is None:
-            online.index = online.index.tz_localize("UTC")
-        online = online.tz_convert("UTC")
-        frames.append(online)
+        try:
+            online = yf.download(
+                ticker,
+                start=start.strftime("%Y-%m-%d"),
+                end=(end + timedelta(days=1)).strftime("%Y-%m-%d"),
+                interval=interval,
+                progress=False,
+            )
+        except Exception as exc:
+            print(f"Failed download for {ticker}: {exc}")
+            online = pd.DataFrame()
+
+        if not online.empty:
+            if isinstance(online.columns, pd.MultiIndex):
+                online.columns = online.columns.get_level_values(0)
+            if not isinstance(online.index, pd.DatetimeIndex):
+                online.index = pd.to_datetime(online.index, errors="coerce")
+            if online.index.tz is None:
+                online.index = online.index.tz_localize("UTC")
+            online = online.tz_convert("UTC")
+            frames.append(online)
 
     if not frames:
         return pd.DataFrame()

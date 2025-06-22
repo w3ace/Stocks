@@ -51,7 +51,7 @@ def fetch_intraday(
 
 def analyze_open_range(
     df: pd.DataFrame, open_range_minutes: int = 30
-) -> tuple[int, int, int, int, int, int, int, int, int, int, dict]:
+) -> tuple[int, int, int, int, int, int, int, int, int, int, dict, list]:
     """Analyze opening range breaks for each trading day.
 
     ``open_range_minutes`` specifies how many minutes after 9:30am EST make up
@@ -60,7 +60,8 @@ def analyze_open_range(
     Returns tuple of ``(total_days, closed_higher_than_open, broke_low_first,
     broke_low_then_high, broke_high_first, broke_high_then_low,
     or_high_before_low, or_low_before_high, low_before_high_close_up,
-    high_before_low_close_up, high_before_low_map)`` where
+    high_before_low_close_up, high_before_low_map,
+    low_before_high_close_up_details)`` where
     ``closed_higher_than_open`` counts the number of days the close finished
     above the open. ``or_high_before_low`` and ``or_low_before_high`` count the
     number of days
@@ -69,10 +70,13 @@ def analyze_open_range(
     where the day's close finished above the open. ``high_before_low_close_up``
     does the same for ``or_high_before_low`` days. ``high_before_low_map`` maps
     each date to ``True`` if the day's break of the opening range high occurred
-    before the break of the low.
+    before the break of the low. ``low_before_high_close_up_details`` contains
+    dictionaries with ``date``, ``open``, ``or_low``, ``or_high`` and ``close``
+    for days where the OR low was broken before the high and the close finished
+    above the open.
     """
     if df.empty:
-        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {}
+        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {}, []
 
     df = df.tz_convert("US/Eastern")
     grouped = df.groupby(df.index.date)
@@ -88,6 +92,7 @@ def analyze_open_range(
     low_before_high_close_up = 0
     high_before_low_close_up = 0
     high_before_low_map: dict[pd.Timestamp, bool] = {}
+    low_before_high_close_up_details: list[dict[str, float | pd.Timestamp]] = []
 
     open_end = (
         pd.Timestamp("09:30") + timedelta(minutes=open_range_minutes)
@@ -113,6 +118,15 @@ def analyze_open_range(
             or_low_before_high += 1
             if close_price > open_price:
                 low_before_high_close_up += 1
+                low_before_high_close_up_details.append(
+                    {
+                        "date": pd.to_datetime(date),
+                        "open": float(open_price),
+                        "or_low": float(or_low),
+                        "or_high": float(or_high),
+                        "close": float(close_price),
+                    }
+                )
         after_open = day_df[day_df.index > morning.index[-1]]
         if after_open.empty:
             total_days += 1
@@ -156,6 +170,7 @@ def analyze_open_range(
         low_before_high_close_up,
         high_before_low_close_up,
         high_before_low_map,
+        low_before_high_close_up_details,
     )
 
 
@@ -236,6 +251,7 @@ def main() -> None:
             low_before_high_close_up,
             high_before_low_close_up,
             high_before_low_map,
+            low_before_high_close_up_details,
         ) = analyze_open_range(df, open_range_minutes=args.range)
 
         print(f"Results for {ticker}:")
@@ -255,6 +271,14 @@ def main() -> None:
             f"  Close higher than open when OR high before low: {high_before_low_close_up} "
             f"({(high_before_low_close_up / or_high_before_low * 100 if or_high_before_low else 0):.2f}%)"
         )
+        if low_before_high_close_up_details:
+            print("  Days with close higher than open when OR low before high:")
+            for item in low_before_high_close_up_details:
+                date_str = item["date"].strftime("%Y-%m-%d")
+                print(
+                    f"    {date_str} - Open: {item['open']:.2f}, OR Low: {item['or_low']:.2f}, "
+                    f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}"
+                )
 
         if not or_pct.empty:
             ax = or_pct.plot(title=f"Opening Range % for {ticker}")

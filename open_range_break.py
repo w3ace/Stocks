@@ -49,13 +49,18 @@ def fetch_intraday(
     return data
 
 
-def analyze_open_range(df: pd.DataFrame) -> tuple[int, int, int]:
+def analyze_open_range(
+    df: pd.DataFrame,
+) -> tuple[int, int, int, int, int, int, int, dict]:
     """Analyze opening range breaks for each trading day.
 
-    Returns tuple of (total_days, broke_low_first, broke_low_then_high).
+    Returns tuple of ``(total_days, broke_low_first, broke_low_then_high,
+    broke_high_first, broke_high_then_low, high_before_low, low_before_high,
+    high_before_low_map)`` where ``high_before_low_map`` maps each date to
+    ``True`` if the day's opening range high occurred before its low.
     """
     if df.empty:
-        return 0, 0, 0
+        return 0, 0, 0, 0, 0, 0, 0, {}
 
     df = df.tz_convert("US/Eastern")
     grouped = df.groupby(df.index.date)
@@ -63,6 +68,11 @@ def analyze_open_range(df: pd.DataFrame) -> tuple[int, int, int]:
     total_days = 0
     broke_low_first = 0
     broke_low_then_high = 0
+    broke_high_first = 0
+    broke_high_then_low = 0
+    high_before_low = 0
+    low_before_high = 0
+    high_before_low_map: dict[pd.Timestamp, bool] = {}
 
     for date, day_df in grouped:
         morning = day_df.between_time("09:30", "10:00")
@@ -71,7 +81,17 @@ def analyze_open_range(df: pd.DataFrame) -> tuple[int, int, int]:
         or_high = morning["High"].max()
         or_low = morning["Low"].min()
         after_open = day_df[day_df.index > morning.index[-1]]
-        print("Opening Range: ",or_low,or_high)
+        high_time = morning["High"].idxmax()
+        low_time = morning["Low"].idxmin()
+        if pd.isna(high_time) or pd.isna(low_time):
+            continue
+        if high_time < low_time:
+            high_before_low += 1
+            high_before_low_map[pd.to_datetime(date)] = True
+        else:
+            low_before_high += 1
+            high_before_low_map[pd.to_datetime(date)] = False
+
         if after_open.empty:
             total_days += 1
             continue
@@ -87,14 +107,29 @@ def analyze_open_range(df: pd.DataFrame) -> tuple[int, int, int]:
                 break
 
         total_days += 1
-        if low_cross_time is not None and (high_cross_time is None or low_cross_time < high_cross_time):
-            print(low_cross_time)
-            broke_low_first += 1
-            after_low = after_open.loc[low_cross_time:]
-            if (after_low["High"] >= or_high).any():
-                broke_low_then_high += 1
 
-    return total_days, broke_low_first, broke_low_then_high
+        if high_cross_time is not None and (low_cross_time is None or high_cross_time < low_cross_time):
+            broke_high_first += 1
+            after_high = after_open.loc[high_cross_time:]
+            if (after_high["Low"] <= or_low).any():
+                broke_high_then_low += 1
+        else:
+            if low_cross_time is not None:
+                broke_low_first += 1
+                after_low = after_open.loc[low_cross_time:]
+                if (after_low["High"] >= or_high).any():
+                    broke_low_then_high += 1
+
+    return (
+        total_days,
+        broke_low_first,
+        broke_low_then_high,
+        broke_high_first,
+        broke_high_then_low,
+        high_before_low,
+        low_before_high,
+        high_before_low_map,
+    )
 
 
 def calculate_open_range_pct(df: pd.DataFrame) -> pd.Series:
@@ -146,14 +181,40 @@ def main() -> None:
     # Calculate open range percentages for plotting
     or_pct = calculate_open_range_pct(df)
 
-    total, low_first, low_then_high = analyze_open_range(df)
+    (
+        total,
+        low_first,
+        low_then_high,
+        high_first,
+        high_then_low,
+        high_before_low_total,
+        low_before_high_total,
+        high_before_low_map,
+    ) = analyze_open_range(df)
 
     print(f"Total days analyzed: {total}")
     print(f"Broke low before high: {low_first} ({(low_first/total*100 if total else 0):.2f}%)")
-    print(f"Broke low then above high: {low_then_high} ({(low_then_high/total*100 if total else 0):.2f}%)")
+    print(
+        f"Broke low then above high: {low_then_high} ({(low_then_high/total*100 if total else 0):.2f}%)"
+    )
+    print(f"Broke high before low: {high_first} ({(high_first/total*100 if total else 0):.2f}%)")
+    print(
+        f"Broke high then low: {high_then_low} ({(high_then_low/total*100 if total else 0):.2f}%)"
+    )
+    print(
+        f"Open range high before low: {high_before_low_total} ({(high_before_low_total/total*100 if total else 0):.2f}%)"
+    )
+    print(
+        f"Open range low before high: {low_before_high_total} ({(low_before_high_total/total*100 if total else 0):.2f}%)"
+    )
 
     if not or_pct.empty:
         ax = or_pct.plot(title=f"Opening Range % for {args.ticker}")
+        colors = [
+            "green" if high_before_low_map.get(date, False) else "red"
+            for date in or_pct.index
+        ]
+        ax.scatter(or_pct.index, or_pct.values, c=colors, s=50, zorder=3)
         ax.set_xlabel("Date")
         ax.set_ylabel("Open Range %")
         ax.tick_params(axis="x", rotation=45)

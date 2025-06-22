@@ -181,7 +181,11 @@ def calculate_open_range_pct(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze opening range breaks")
-    parser.add_argument("ticker", help="Ticker symbol")
+    parser.add_argument(
+        "ticker",
+        nargs="+",
+        help="Ticker symbol or a list of symbols separated by spaces",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--period", help="Period string for yfinance (e.g. 1mo, 6mo)")
     group.add_argument("--start", help="Start date YYYY-MM-DD")
@@ -199,68 +203,65 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.start and args.end:
-        start = pd.to_datetime(args.start)
-        end = pd.to_datetime(args.end)
-        interval = args.interval or choose_yfinance_interval(start=start, end=end)
-        df = fetch_intraday(args.ticker, start, end, interval=interval)
-    else:
-        end = pd.to_datetime(args.end) if args.end else None
-        start, end = period_to_start_end(args.period, end=end)
-        interval = args.interval or choose_yfinance_interval(start=start, end=end)
-        df = fetch_intraday(args.ticker, start, end, interval=interval)
+    for ticker in args.ticker:
+        if args.start and args.end:
+            start = pd.to_datetime(args.start)
+            end = pd.to_datetime(args.end)
+            interval = args.interval or choose_yfinance_interval(start=start, end=end)
+            df = fetch_intraday(ticker, start, end, interval=interval)
+        else:
+            end = pd.to_datetime(args.end) if args.end else None
+            start, end = period_to_start_end(args.period, end=end)
+            interval = args.interval or choose_yfinance_interval(start=start, end=end)
+            df = fetch_intraday(ticker, start, end, interval=interval)
 
-    # Calculate open range percentages for plotting
-    or_pct = calculate_open_range_pct(df, open_range_minutes=args.range)
+        # Calculate open range percentages for plotting
+        or_pct = calculate_open_range_pct(df, open_range_minutes=args.range)
 
-    (
-        total,
-        low_first,
-        low_then_high,
-        high_first,
-        high_then_low,
-        or_high_before_low,
-        or_low_before_high,
-        low_before_high_close_up,
-        high_before_low_close_up,
-        high_before_low_map,
-    ) = analyze_open_range(df, open_range_minutes=args.range)
+        (
+            total,
+            low_first,
+            low_then_high,
+            high_first,
+            high_then_low,
+            or_high_before_low,
+            or_low_before_high,
+            low_before_high_close_up,
+            high_before_low_map,
+        ) = analyze_open_range(df, open_range_minutes=args.range)
 
-    print(f"Total days analyzed: {total}")
-    print(f"Broke low before high: {low_first} ({(low_first/total*100 if total else 0):.2f}%)")
-    print(
-        f"Broke low then above high: {low_then_high} ({(low_then_high/total*100 if total else 0):.2f}%)"
-    )
-    print(f"Broke high before low: {high_first} ({(high_first/total*100 if total else 0):.2f}%)")
-    print(
-        f"Broke high then low: {high_then_low} ({(high_then_low/total*100 if total else 0):.2f}%)"
-    )
-    print(
-        f"OR high before low: {or_high_before_low} ({(or_high_before_low/total*100 if total else 0):.2f}%)"
-    )
-    print(
-        f"OR low before high: {or_low_before_high} ({(or_low_before_high/total*100 if total else 0):.2f}%)"
-    )
-    print(
-        f"Close higher than open when OR low before high: {low_before_high_close_up} ({(low_before_high_close_up/or_low_before_high*100 if or_low_before_high else 0):.2f}%)"
-    )
-    print(
-        f"Close higher than open when OR high before low: {high_before_low_close_up} ({(high_before_low_close_up/total*100 if total else 0):.2f}%)"
-    )
+        print(f"Results for {ticker}:")
+        print(f"  Total days analyzed: {total}")
+        print(f"  Broke low before high: {low_first} ({(low_first/total*100 if total else 0):.2f}%)")
+        print(
+            f"  Broke low then above high: {low_then_high} ({(low_then_high/total*100 if total else 0):.2f}%)"
+        )
+        print(f"  Broke high before low: {high_first} ({(high_first/total*100 if total else 0):.2f}%)")
+        print(
+            f"  Broke high then low: {high_then_low} ({(high_then_low/total*100 if total else 0):.2f}%)"
+        )
+        print(
+            f"  OR high before low: {or_high_before_low} ({(or_high_before_low/total*100 if total else 0):.2f}%)"
+        )
+        print(
+            f"  OR low before high: {or_low_before_high} ({(or_low_before_high/total*100 if total else 0):.2f}%)"
+        )
+        print(
+            f"  Close higher than open when OR low before high: {low_before_high_close_up} ({(low_before_high_close_up/or_low_before_high*100 if or_low_before_high else 0):.2f}%)"
+        )
 
-    if not or_pct.empty:
-        ax = or_pct.plot(title=f"Opening Range % for {args.ticker}")
-        colors = [
-            "green" if high_before_low_map.get(date, False) else "red"
-            for date in or_pct.index
-        ]
-        ax.scatter(or_pct.index, or_pct.values, c=colors, s=50, zorder=3)
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Open Range %")
-        ax.tick_params(axis="x", rotation=45)
-        plt.tight_layout()
-        plt.show()
-
+        if not or_pct.empty:
+            ax = or_pct.plot(title=f"Opening Range % for {ticker}")
+            colors = [
+                "green" if high_before_low_map.get(date, False) else "red"
+                for date in or_pct.index
+            ]
+            ax.scatter(or_pct.index, or_pct.values, c=colors, s=50, zorder=3)
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Open Range %")
+            ax.tick_params(axis="x", rotation=45)
+            plt.tight_layout()
+            plt.show()
 
 if __name__ == "__main__":
     main()

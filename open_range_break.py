@@ -58,12 +58,15 @@ def analyze_open_range(
     the opening range.
 
     Returns tuple of ``(total_days, broke_low_first, broke_low_then_high,
-    broke_high_first, broke_high_then_low, high_before_low_map)`` where
-    ``high_before_low_map`` maps each date to ``True`` if the day's break of the
-    opening range high occurred before the break of the low.
+    broke_high_first, broke_high_then_low, or_high_before_low,
+    or_low_before_high, high_before_low_map)`` where ``or_high_before_low`` and
+    ``or_low_before_high`` count the number of days the high or low of the
+    opening range was reached first, respectively. ``high_before_low_map`` maps
+    each date to ``True`` if the day's break of the opening range high occurred
+    before the break of the low.
     """
     if df.empty:
-        return 0, 0, 0, 0, 0, {}
+        return 0, 0, 0, 0, 0, 0, 0, {}
 
     df = df.tz_convert("US/Eastern")
     grouped = df.groupby(df.index.date)
@@ -73,6 +76,8 @@ def analyze_open_range(
     broke_low_then_high = 0
     broke_high_first = 0
     broke_high_then_low = 0
+    or_high_before_low = 0
+    or_low_before_high = 0
     high_before_low_map: dict[pd.Timestamp, bool] = {}
 
     open_end = (
@@ -85,6 +90,12 @@ def analyze_open_range(
             continue
         or_high = morning["High"].max()
         or_low = morning["Low"].min()
+        or_high_time = morning["High"].idxmax()
+        or_low_time = morning["Low"].idxmin()
+        if or_high_time < or_low_time:
+            or_high_before_low += 1
+        elif or_low_time < or_high_time:
+            or_low_before_high += 1
         after_open = day_df[day_df.index > morning.index[-1]]
         if after_open.empty:
             total_days += 1
@@ -122,6 +133,8 @@ def analyze_open_range(
         broke_low_then_high,
         broke_high_first,
         broke_high_then_low,
+        or_high_before_low,
+        or_low_before_high,
         high_before_low_map,
     )
 
@@ -192,6 +205,8 @@ def main() -> None:
         low_then_high,
         high_first,
         high_then_low,
+        or_high_before_low,
+        or_low_before_high,
         high_before_low_map,
     ) = analyze_open_range(df, open_range_minutes=args.range)
 
@@ -203,6 +218,12 @@ def main() -> None:
     print(f"Broke high before low: {high_first} ({(high_first/total*100 if total else 0):.2f}%)")
     print(
         f"Broke high then low: {high_then_low} ({(high_then_low/total*100 if total else 0):.2f}%)"
+    )
+    print(
+        f"OR high before low: {or_high_before_low} ({(or_high_before_low/total*100 if total else 0):.2f}%)"
+    )
+    print(
+        f"OR low before high: {or_low_before_high} ({(or_low_before_high/total*100 if total else 0):.2f}%)"
     )
 
     if not or_pct.empty:

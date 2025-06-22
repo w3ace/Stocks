@@ -1,7 +1,10 @@
 import argparse
-import pandas as pd
 from datetime import timedelta
+
+import pandas as pd
+
 from fetch_stock import fetch_stock
+from stock_functions import choose_yfinance_interval
 
 
 def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
@@ -79,15 +82,21 @@ def main() -> None:
     group.add_argument("--period", help="Period string for yfinance (e.g. 1mo, 6mo)")
     group.add_argument("--start", help="Start date YYYY-MM-DD")
     parser.add_argument("--end", help="End date YYYY-MM-DD")
-    parser.add_argument("--interval", default="5m", help="Data interval (default 5m)")
+    parser.add_argument(
+        "--interval",
+        default=None,
+        help="Data interval (default determined automatically)",
+    )
     args = parser.parse_args()
 
     if args.start and args.end:
         start = pd.to_datetime(args.start)
         end = pd.to_datetime(args.end)
-        df = fetch_intraday(args.ticker, start, end, interval=args.interval)
+        interval = args.interval or choose_yfinance_interval(start=start, end=end)
+        df = fetch_intraday(args.ticker, start, end, interval=interval)
     else:
-        df, _ = fetch_stock(args.ticker, period=args.period, interval=args.interval)
+        interval = args.interval or choose_yfinance_interval(period=args.period)
+        df, _ = fetch_stock(args.ticker, period=args.period, interval=interval)
         if df is None:
             df = pd.DataFrame()
         else:

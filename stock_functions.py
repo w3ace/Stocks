@@ -1,5 +1,56 @@
 from datetime import datetime, timedelta
 
+
+def period_to_start_end(period: str, end: datetime | None = None) -> tuple[datetime, datetime]:
+    """Convert a yfinance period string to explicit ``start`` and ``end`` dates.
+
+    Parameters
+    ----------
+    period : str
+        Period string understood by :func:`yfinance.download`.
+    end : datetime, optional
+        End date for the range.  ``None`` uses the current day in UTC.
+
+    Returns
+    -------
+    (datetime, datetime)
+        Tuple of ``(start, end)`` dates.
+    """
+    end = end or datetime.utcnow()
+
+    period_map = {
+        "1d": timedelta(days=1),
+        "5d": timedelta(days=5),
+        "7d": timedelta(days=7),
+        "14d": timedelta(days=14),
+        "30d": timedelta(days=30),
+        "60d": timedelta(days=60),
+        "90d": timedelta(days=90),
+        "1mo": timedelta(days=30),
+        "3mo": timedelta(days=90),
+        "6mo": timedelta(days=180),
+        "1y": timedelta(days=365),
+        "2y": timedelta(days=730),
+        "5y": timedelta(days=1825),
+        "10y": timedelta(days=3650),
+        "ytd": None,
+        "max": None,
+    }
+
+    p = period.lower()
+    if p == "ytd":
+        start = datetime(end.year, 1, 1)
+    elif p == "max":
+        start = datetime(1900, 1, 1)
+    else:
+        delta = period_map.get(p)
+        if delta is None:
+            # Default to one year if unknown
+            delta = timedelta(days=365)
+        start = end - delta
+
+    return start, end
+
 def choose_yfinance_interval(start=None, end=None, period=None):
     """
     Chooses the best yfinance interval based on either start/end or period.

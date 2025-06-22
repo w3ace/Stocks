@@ -4,7 +4,7 @@ from datetime import timedelta
 import pandas as pd
 
 from fetch_stock import fetch_stock
-from stock_functions import choose_yfinance_interval
+from stock_functions import choose_yfinance_interval, period_to_start_end
 
 
 def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
@@ -97,21 +97,10 @@ def main() -> None:
         interval = args.interval or choose_yfinance_interval(start=start, end=end)
         df = fetch_intraday(args.ticker, start, end, interval=interval)
     else:
-        interval = args.interval or choose_yfinance_interval(period=args.period)
-        df = fetch_stock(args.ticker, period=args.period, interval=interval)
-        if df is None:
-            df = pd.DataFrame()
-        else:
-            if "Datetime" in df.columns:
-                idx = pd.DatetimeIndex(pd.to_datetime(df["Datetime"], errors="coerce"))
-            else:
-                idx = pd.DatetimeIndex(pd.to_datetime(df.index, errors="coerce"))
-            if idx.tz is None:
-                idx = idx.tz_localize("UTC")
-            df.index = idx
-            if "Datetime" in df.columns:
-                df = df.drop(columns=["Datetime"])
-            df.sort_index(inplace=True)
+        end = pd.to_datetime(args.end) if args.end else None
+        start, end = period_to_start_end(args.period, end=end)
+        interval = args.interval or choose_yfinance_interval(start=start, end=end)
+        df = fetch_intraday(args.ticker, start, end, interval=interval)
 
     total, low_first, low_then_high = analyze_open_range(df)
 

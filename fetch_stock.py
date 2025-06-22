@@ -21,30 +21,23 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
     """
     try:
         if start_date and end_date:
-            hourly_data = yf.download(
+            data = yf.download(
                 symbol, interval=interval, start=start_date, end=end_date
             )
-            daily_data = yf.download(
-                symbol, interval="1d", start=start_date, end=end_date
-            )
         else:
-            hourly_data = yf.download(symbol, interval=interval, period=period)
-            daily_data = yf.download(symbol, interval="1d", period=period)
+            data = yf.download(symbol, interval=interval, period=period)
 
-        if hourly_data.empty or daily_data.empty:
+        if data.empty:
             logging.warning(f"No data returned for {symbol}")
-            return None, None
+            return None
 
-        if isinstance(hourly_data.columns, pd.MultiIndex):
-            hourly_data.columns = hourly_data.columns.get_level_values(0)
-        if isinstance(daily_data.columns, pd.MultiIndex):
-            daily_data.columns = daily_data.columns.get_level_values(0)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
 
-        hourly_data.reset_index(inplace=True)
-        daily_data.reset_index(inplace=True)
+        data.reset_index(inplace=True)
 
-        return hourly_data, daily_data
+        return data
 
     except Exception as e:
         logging.warning(f"Failed to download data for {symbol}: {e}")
-        return None, None
+        return None

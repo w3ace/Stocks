@@ -12,7 +12,7 @@ def fetch_intraday(
 ) -> pd.DataFrame:
     """Fetch intraday data for ``ticker`` using :func:`fetch_stock`."""
 
-    data, _ = fetch_stock(ticker, start_date=start, end_date=end, interval=interval)
+    data = fetch_stock(ticker, start_date=start, end_date=end, interval=interval)
     if data is None or data.empty:
         return pd.DataFrame()
 

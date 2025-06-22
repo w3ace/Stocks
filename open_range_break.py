@@ -9,7 +9,7 @@ from stock_functions import choose_yfinance_interval
 
 def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
     """Fetch intraday data for ``ticker`` using :func:`fetch_stock`."""
-    data, _ = fetch_stock(ticker, start_date=start, end_date=end, interval=interval)
+    data = fetch_stock(ticker, start_date=start, end_date=end, interval=interval)
     if data is None or data.empty:
         return pd.DataFrame()
 
@@ -51,6 +51,7 @@ def analyze_open_range(df: pd.DataFrame) -> tuple[int, int, int]:
         or_high = morning["High"].max()
         or_low = morning["Low"].min()
         after_open = day_df[day_df.index > morning.index[-1]]
+        print("Opening Range: ",or_low,or_high)
         if after_open.empty:
             total_days += 1
             continue
@@ -67,6 +68,7 @@ def analyze_open_range(df: pd.DataFrame) -> tuple[int, int, int]:
 
         total_days += 1
         if low_cross_time is not None and (high_cross_time is None or low_cross_time < high_cross_time):
+            print(low_cross_time)
             broke_low_first += 1
             after_low = after_open.loc[low_cross_time:]
             if (after_low["High"] >= or_high).any():
@@ -96,7 +98,7 @@ def main() -> None:
         df = fetch_intraday(args.ticker, start, end, interval=interval)
     else:
         interval = args.interval or choose_yfinance_interval(period=args.period)
-        df, _ = fetch_stock(args.ticker, period=args.period, interval=interval)
+        df = fetch_stock(args.ticker, period=args.period, interval=interval)
         if df is None:
             df = pd.DataFrame()
         else:

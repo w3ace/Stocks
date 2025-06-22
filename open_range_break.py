@@ -50,9 +50,12 @@ def fetch_intraday(
 
 
 def analyze_open_range(
-    df: pd.DataFrame,
-) -> tuple[int, int, int, int, int, int, int, dict]:
+    df: pd.DataFrame, open_range_minutes: int = 30
+) -> tuple[int, int, int, int, int, dict]:
     """Analyze opening range breaks for each trading day.
+
+    ``open_range_minutes`` specifies how many minutes after 9:30am EST make up
+    the opening range.
 
     Returns tuple of ``(total_days, broke_low_first, broke_low_then_high,
     broke_high_first, broke_high_then_low, or_high_before_low,
@@ -77,8 +80,12 @@ def analyze_open_range(
     or_low_before_high = 0
     high_before_low_map: dict[pd.Timestamp, bool] = {}
 
+    open_end = (
+        pd.Timestamp("09:30") + timedelta(minutes=open_range_minutes)
+    ).strftime("%H:%M")
+
     for date, day_df in grouped:
-        morning = day_df.between_time("09:30", "10:00")
+        morning = day_df.between_time("09:30", open_end)
         if morning.empty:
             continue
         or_high = morning["High"].max()
@@ -132,7 +139,9 @@ def analyze_open_range(
     )
 
 
-def calculate_open_range_pct(df: pd.DataFrame) -> pd.Series:
+def calculate_open_range_pct(
+    df: pd.DataFrame, open_range_minutes: int = 30
+) -> pd.Series:
     """Return a Series of opening range percentages indexed by date."""
     if df.empty:
         return pd.Series(dtype=float)
@@ -141,8 +150,11 @@ def calculate_open_range_pct(df: pd.DataFrame) -> pd.Series:
     grouped = df.groupby(df.index.date)
 
     pct_values = {}
+    open_end = (
+        pd.Timestamp("09:30") + timedelta(minutes=open_range_minutes)
+    ).strftime("%H:%M")
     for date, day_df in grouped:
-        morning = day_df.between_time("09:30", "10:00")
+        morning = day_df.between_time("09:30", open_end)
         if morning.empty:
             continue
         or_high = morning["High"].max()
@@ -165,6 +177,12 @@ def main() -> None:
         default=None,
         help="Data interval (default determined automatically)",
     )
+    parser.add_argument(
+        "--range",
+        type=int,
+        default=30,
+        help="Opening range in minutes (default 30)",
+    )
     args = parser.parse_args()
 
     if args.start and args.end:
@@ -179,7 +197,7 @@ def main() -> None:
         df = fetch_intraday(args.ticker, start, end, interval=interval)
 
     # Calculate open range percentages for plotting
-    or_pct = calculate_open_range_pct(df)
+    or_pct = calculate_open_range_pct(df, open_range_minutes=args.range)
 
     (
         total,
@@ -190,7 +208,7 @@ def main() -> None:
         or_high_before_low,
         or_low_before_high,
         high_before_low_map,
-    ) = analyze_open_range(df)
+    ) = analyze_open_range(df, open_range_minutes=args.range)
 
     print(f"Total days analyzed: {total}")
     print(f"Broke low before high: {low_first} ({(low_first/total*100 if total else 0):.2f}%)")

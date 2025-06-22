@@ -7,8 +7,27 @@ from fetch_stock import fetch_stock
 from stock_functions import choose_yfinance_interval, period_to_start_end
 
 
-def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
-    """Fetch intraday data for ``ticker`` using :func:`fetch_stock`."""
+def fetch_intraday(
+    ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m"
+) -> pd.DataFrame:
+    """Fetch intraday data for ``ticker`` using :func:`fetch_stock`.
+
+    ``start`` and ``end`` may be timezone-naive or aware. They are localized to
+    UTC so that comparisons against the fetched data's index work reliably.
+    """
+    start = pd.to_datetime(start)
+    end = pd.to_datetime(end)
+
+    if start.tzinfo is None:
+        start = start.tz_localize("UTC")
+    else:
+        start = start.tz_convert("UTC")
+
+    if end.tzinfo is None:
+        end = end.tz_localize("UTC")
+    else:
+        end = end.tz_convert("UTC")
+
     data = fetch_stock(ticker, start_date=start, end_date=end, interval=interval)
     if data is None or data.empty:
         return pd.DataFrame()

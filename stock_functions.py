@@ -60,7 +60,7 @@ def choose_yfinance_interval(start=None, end=None, period=None):
     # Interval tiers (from yfinance limits)
     intervals = [
         ("1m", timedelta(days=7)),
-        ("2m", timedelta(days=60)),
+        ("2m", timedelta(days=30)),
         ("5m", timedelta(days=60)),
         ("15m", timedelta(days=60)),
         ("30m", timedelta(days=60)),

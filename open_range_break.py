@@ -219,36 +219,27 @@ def main() -> None:
         or_pct = calculate_open_range_pct(df, open_range_minutes=args.range)
 
         (
-            total,
-            low_first,
-            low_then_high,
-            high_first,
-            high_then_low,
+            total_days,
+            broke_low_first,
+            broke_low_then_high,
+            broke_high_first,
+            broke_high_then_low,
             or_high_before_low,
             or_low_before_high,
             low_before_high_close_up,
+            high_before_low_close_up,
             high_before_low_map,
         ) = analyze_open_range(df, open_range_minutes=args.range)
 
         print(f"Results for {ticker}:")
-        print(f"  Total days analyzed: {total}")
-        print(f"  Broke low before high: {low_first} ({(low_first/total*100 if total else 0):.2f}%)")
-        print(
-            f"  Broke low then above high: {low_then_high} ({(low_then_high/total*100 if total else 0):.2f}%)"
-        )
-        print(f"  Broke high before low: {high_first} ({(high_first/total*100 if total else 0):.2f}%)")
-        print(
-            f"  Broke high then low: {high_then_low} ({(high_then_low/total*100 if total else 0):.2f}%)"
-        )
-        print(
-            f"  OR high before low: {or_high_before_low} ({(or_high_before_low/total*100 if total else 0):.2f}%)"
-        )
-        print(
-            f"  OR low before high: {or_low_before_high} ({(or_low_before_high/total*100 if total else 0):.2f}%)"
-        )
-        print(
-            f"  Close higher than open when OR low before high: {low_before_high_close_up} ({(low_before_high_close_up/or_low_before_high*100 if or_low_before_high else 0):.2f}%)"
-        )
+        print(f"  Total days analyzed: {total_days}")
+        print(f"  Broke low before high: {broke_low_first} ({(broke_low_first / total_days * 100 if total_days else 0):.2f}%)")
+        print(f"  Broke low then above high: {broke_low_then_high} ({(broke_low_then_high / total_days * 100 if total_days else 0):.2f}%)")
+        print(f"  Broke high before low: {broke_high_first} ({(broke_high_first / total_days * 100 if total_days else 0):.2f}%)")
+        print(f"  Broke high then low: {broke_high_then_low} ({(broke_high_then_low / total_days * 100 if total_days else 0):.2f}%)")
+        print(f"  OR high before low: {or_high_before_low} ({(or_high_before_low / total_days * 100 if total_days else 0):.2f}%)")
+        print(f"  OR low before high: {or_low_before_high} ({(or_low_before_high / total_days * 100 if total_days else 0):.2f}%)")
+        print(f"  Close higher than open when OR low before high: {low_before_high_close_up} ({(low_before_high_close_up / or_low_before_high * 100 if or_low_before_high else 0):.2f}%)")
 
         if not or_pct.empty:
             ax = or_pct.plot(title=f"Opening Range % for {ticker}")

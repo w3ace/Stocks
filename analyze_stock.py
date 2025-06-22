@@ -52,6 +52,8 @@ def analyze_stock(hourly_data, daily_data):
     daily_data = daily_data.merge(first_hour_data[['Date', 'First_Hour_Open', 'First_Hour_Close', 'First_Hour_High', 'First_Hour_Low']], left_on='Date', right_on='Date', how='left')
 
     daily_data['First_Hour_Range'] = daily_data['First_Hour_High'] - daily_data['First_Hour_Low']
+    daily_data['Open_Range_Pct'] = daily_data['First_Hour_Range'] / daily_data['Open'] * 100
+    daily_data['Cumulative_Open_Range_Pct'] = daily_data['Open_Range_Pct'].cumsum()
     daily_data['First_Hour_Close_Change'] = (daily_data['First_Hour_Close'] - daily_data['First_Hour_Open']) / daily_data['First_Hour_Open'] * 100
 
     conditions = [

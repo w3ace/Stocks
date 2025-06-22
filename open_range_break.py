@@ -2,6 +2,7 @@ import argparse
 from datetime import timedelta
 
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from fetch_stock import fetch_stock
 from stock_functions import choose_yfinance_interval, period_to_start_end
@@ -96,6 +97,27 @@ def analyze_open_range(df: pd.DataFrame) -> tuple[int, int, int]:
     return total_days, broke_low_first, broke_low_then_high
 
 
+def calculate_open_range_pct(df: pd.DataFrame) -> pd.Series:
+    """Return a Series of opening range percentages indexed by date."""
+    if df.empty:
+        return pd.Series(dtype=float)
+
+    df = df.tz_convert("US/Eastern")
+    grouped = df.groupby(df.index.date)
+
+    pct_values = {}
+    for date, day_df in grouped:
+        morning = day_df.between_time("09:30", "10:00")
+        if morning.empty:
+            continue
+        or_high = morning["High"].max()
+        or_low = morning["Low"].min()
+        open_price = morning.iloc[0]["Open"]
+        pct_values[pd.to_datetime(date)] = (or_high - or_low) / open_price * 100
+
+    return pd.Series(pct_values).sort_index()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze opening range breaks")
     parser.add_argument("ticker", help="Ticker symbol")
@@ -121,11 +143,22 @@ def main() -> None:
         interval = args.interval or choose_yfinance_interval(start=start, end=end)
         df = fetch_intraday(args.ticker, start, end, interval=interval)
 
+    # Calculate open range percentages for plotting
+    or_pct = calculate_open_range_pct(df)
+
     total, low_first, low_then_high = analyze_open_range(df)
 
     print(f"Total days analyzed: {total}")
     print(f"Broke low before high: {low_first} ({(low_first/total*100 if total else 0):.2f}%)")
     print(f"Broke low then above high: {low_then_high} ({(low_then_high/total*100 if total else 0):.2f}%)")
+
+    if not or_pct.empty:
+        ax = or_pct.plot(title=f"Opening Range % for {args.ticker}")
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Open Range %")
+        ax.tick_params(axis="x", rotation=45)
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == "__main__":

@@ -11,9 +11,9 @@ def plot_stock(symbol, daily_data, hourly_data):
     norm_volume = (hourly_data['Volume'] - hourly_data['Volume'].min()) / (hourly_data['Volume'].max() - hourly_data['Volume'].min())
     sizes = min_size + norm_volume * (max_size - min_size)
 
-    # Create a figure with 2 subplots, the first one being larger
-    fig, axs = plt.subplots(2, 1, figsize=(12, 12))
-    grid_spec = fig.add_gridspec(2, 1, height_ratios=[3, 1])
+    # Create a figure with 3 subplots, the first one being larger
+    fig, axs = plt.subplots(3, 1, figsize=(12, 14))
+    grid_spec = fig.add_gridspec(3, 1, height_ratios=[3, 1, 1])
 
     # Plot daily open prices as a line on the first subplot
     ax1 = fig.add_subplot(grid_spec[0])
@@ -67,6 +67,16 @@ def plot_stock(symbol, daily_data, hourly_data):
 
     # Add a legend to the second subplot
     ax2.legend()
+
+    # Plot opening range percentage on the third subplot
+    ax3 = fig.add_subplot(grid_spec[2])
+    ax3.plot(daily_data['Date'], daily_data['Open_Range_Pct'], label='Open Range %', color='brown')
+    ax3.plot(daily_data['Date'], daily_data['Cumulative_Open_Range_Pct'], label='Cumulative Open Range %', color='darkorange', linestyle='--')
+    ax3.set_title(f'Opening Range % for {symbol}')
+    ax3.set_xlabel('Date')
+    ax3.set_ylabel('Open Range %')
+    ax3.tick_params(axis='x', rotation=45)
+    ax3.legend()
 
     # Ensure layout is tight
     plt.tight_layout()

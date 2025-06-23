@@ -51,7 +51,7 @@ def fetch_intraday(
 
 def analyze_open_range(
     df: pd.DataFrame, open_range_minutes: int = 30
-) -> tuple[int, int, int, int, int, int, int, int, int, int, dict, list]:
+) -> tuple[int, int, int, int, int, int, int, int, int, int, int, int, dict, list]:
     """Analyze opening range breaks for each trading day.
 
     ``open_range_minutes`` specifies how many minutes after 9:30am EST make up
@@ -61,7 +61,7 @@ def analyze_open_range(
     broke_low_then_high, broke_high_first, broke_high_then_low,
     or_high_before_low, or_low_before_high, low_before_high_close_up,
     high_before_low_close_up, high_before_low_map,
-    low_before_high_close_up_details)`` where
+    low_before_high_details)`` where
     ``closed_higher_than_open`` counts the number of days the close finished
     above the open. ``or_high_before_low`` and ``or_low_before_high`` count the
     number of days
@@ -70,13 +70,13 @@ def analyze_open_range(
     where the day's close finished above the open. ``high_before_low_close_up``
     does the same for ``or_high_before_low`` days. ``high_before_low_map`` maps
     each date to ``True`` if the day's break of the opening range high occurred
-    before the break of the low. ``low_before_high_close_up_details`` contains
+    before the break of the low. ``low_before_high_details`` contains
     dictionaries with ``date``, ``open``, ``or_low``, ``or_high`` and ``close``
     for days where the OR low was broken before the high and the close finished
     above the open.
     """
     if df.empty:
-        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {}, []
+        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {}, []
 
     df = df.tz_convert("US/Eastern")
     grouped = df.groupby(df.index.date)
@@ -91,15 +91,23 @@ def analyze_open_range(
     or_low_before_high = 0
     low_before_high_close_up = 0
     high_before_low_close_up = 0
+    total_trades = 0
+    total_profit = 0
     high_before_low_map: dict[pd.Timestamp, bool] = {}
-    low_before_high_close_up_details: list[dict[str, float | pd.Timestamp]] = []
+    low_before_high_details: list[dict[str, float | pd.Timestamp]] = []
 
     open_end = (
         pd.Timestamp("09:30") + timedelta(minutes=open_range_minutes)
     ).strftime("%H:%M")
+    after_settlement = (
+        pd.Timestamp(open_end) + timedelta(minutes=5)
+    ).strftime("%H:%M")
+
 
     for date, day_df in grouped:
         morning = day_df.between_time("09:30", open_end)
+        near_closing = day_df.between_time(open_end,after_settlement)
+        rest_of_day = day_df.between_time(after_settlement,"16:00")
         if morning.empty:
             continue
         or_high = morning["High"].max()
@@ -108,25 +116,40 @@ def analyze_open_range(
         or_low_time = morning["Low"].idxmin()
         open_price = morning.iloc[0]["Open"]
         close_price = day_df.iloc[-1]["Close"]
+        after_or_price = near_closing.iloc[0]["Open"]
+        print(near_closing)
         if close_price > open_price:
             closed_higher_than_open += 1
         if or_high_time < or_low_time:
-            or_high_before_low += 1
-            if close_price > open_price:
-                high_before_low_close_up += 1
-        elif or_low_time < or_high_time:
-            or_low_before_high += 1
-            if close_price > open_price:
-                low_before_high_close_up += 1
-                low_before_high_close_up_details.append(
+            if after_or_price > open_price * 1.002:
+                buy = after_or_price
+                if(rest_of_day["Low"].min() < buy * 0.9965):
+                    sell = buy * 0.9965
+                else:
+                    sell = close_price
+                profit = ((sell-buy)/buy)*100
+                total_trades += 1
+                total_profit += profit
+                low_before_high_details.append(
                     {
                         "date": pd.to_datetime(date),
                         "open": float(open_price),
+                        "close": float(close_price),
                         "or_low": float(or_low),
                         "or_high": float(or_high),
-                        "close": float(close_price),
+                        "after_OR": float(after_or_price),
+                        "profit" : float(profit)
                     }
                 )
+            or_high_before_low += 1
+            if close_price > open_price:
+                high_before_low_close_up += 1
+        elif or_low_time < or_high_time:     
+           
+         
+            or_low_before_high += 1
+            if close_price > open_price:
+                low_before_high_close_up += 1
         after_open = day_df[day_df.index > morning.index[-1]]
         if after_open.empty:
             total_days += 1
@@ -160,6 +183,8 @@ def analyze_open_range(
 
     return (
         total_days,
+        total_trades,
+        total_profit,
         closed_higher_than_open,
         broke_low_first,
         broke_low_then_high,
@@ -170,7 +195,7 @@ def analyze_open_range(
         low_before_high_close_up,
         high_before_low_close_up,
         high_before_low_map,
-        low_before_high_close_up_details,
+        low_before_high_details,
     )
 
 
@@ -224,6 +249,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    super_total_trades = 0;
+    super_total_profit = 0;
+
     for ticker in args.ticker:
         if args.start and args.end:
             start = pd.to_datetime(args.start)
@@ -241,6 +269,8 @@ def main() -> None:
 
         (
             total_days,
+            total_trades,
+            total_profit,
             closed_higher_than_open,
             broke_low_first,
             broke_low_then_high,
@@ -251,11 +281,13 @@ def main() -> None:
             low_before_high_close_up,
             high_before_low_close_up,
             high_before_low_map,
-            low_before_high_close_up_details,
+            low_before_high_details,
         ) = analyze_open_range(df, open_range_minutes=args.range)
 
         print(f"Results for {ticker}:")
         print(f"  Total days analyzed: {total_days}")
+        print(f"  Total trades: {total_trades}")
+        print(f"  Total profit: {total_profit}")
         print(
             f"  Days closed higher than open: {closed_higher_than_open} "
             f"({(closed_higher_than_open / total_days * 100 if total_days else 0):.2f}%)"
@@ -271,27 +303,34 @@ def main() -> None:
             f"  Close higher than open when OR high before low: {high_before_low_close_up} "
             f"({(high_before_low_close_up / or_high_before_low * 100 if or_high_before_low else 0):.2f}%)"
         )
-        if low_before_high_close_up_details:
+        super_total_trades += total_trades
+        super_total_profit += total_profit
+
+        if low_before_high_details:
             print("  Days with close higher than open when OR low before high:")
-            for item in low_before_high_close_up_details:
+            for item in low_before_high_details:
                 date_str = item["date"].strftime("%Y-%m-%d")
                 print(
                     f"    {date_str} - Open: {item['open']:.2f}, OR Low: {item['or_low']:.2f}, "
-                    f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}"
+                    f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}, After OR Price: {item['after_OR']:.2f}, "
+                    f"Profit: {item['profit']:.2f}"
                 )
 
-        if not or_pct.empty:
-            ax = or_pct.plot(title=f"Opening Range % for {ticker}")
-            colors = [
-                "green" if high_before_low_map.get(date, False) else "red"
-                for date in or_pct.index
-            ]
-            ax.scatter(or_pct.index, or_pct.values, c=colors, s=50, zorder=3)
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Open Range %")
-            ax.tick_params(axis="x", rotation=45)
-            plt.tight_layout()
-            plt.show()
+#        if not or_pct.empty:
+#            ax = or_pct.plot(title=f"Opening Range % for {ticker}")
+#            colors = [
+#                "green" if high_before_low_map.get(date, False) else "red"
+#                for date in or_pct.index
+#            ]
+#            ax.scatter(or_pct.index, or_pct.values, c=colors, s=50, zorder=3)
+#            ax.set_xlabel("Date")
+#            ax.set_ylabel("Open Range %")
+#            ax.tick_params(axis="x", rotation=45)
+#            plt.tight_layout()
+#            plt.show()
+
+    print("Total Trades:",super_total_trades)
+    print("Total Profit:",super_total_profit)
 
 if __name__ == "__main__":
     main()

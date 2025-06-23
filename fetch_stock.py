@@ -38,14 +38,21 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
     try:
         cache_file = _cache_path(symbol, start_date, end_date, period, interval)
 
-        # Do not cache if the requested end date is today
+        # Do not cache if the requested end date is today and the current time
+        # is before 4pm US/Eastern.  After 4pm, caching is allowed.
         cache_enabled = True
         if end_date:
             try:
                 end_dt = pd.to_datetime(end_date)
                 if end_dt.tzinfo is None:
                     end_dt = end_dt.tz_localize("UTC")
-                if end_dt.normalize() == pd.Timestamp.utcnow().normalize():
+                end_dt_est = end_dt.tz_convert("US/Eastern")
+                now_est = pd.Timestamp.now(tz="US/Eastern")
+                four_pm = pd.Timestamp("16:00", tz="US/Eastern").time()
+                if (
+                    end_dt_est.normalize() == now_est.normalize()
+                    and now_est.time() < four_pm
+                ):
                     cache_enabled = False
             except Exception:
                 pass

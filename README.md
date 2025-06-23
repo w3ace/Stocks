@@ -30,3 +30,7 @@ If you omit both `--period` and `--start`, `open_range_break.py` will
 analyze a single day automatically. When run before 9:30 AM US/Eastern it
 uses the previous trading day (adjusting for weekends); otherwise it uses
 the current day.
+
+The script also provides `--profit-pct` and `--loss-pct` options to
+control the intraday profit target and stop loss percentages when a trade
+is taken after the opening range.

@@ -28,7 +28,7 @@ class OpenRangeBreakTotals:
     low_before_high_close_up: int = 0
     high_before_low_close_up: int = 0
     high_before_low_map: dict[pd.Timestamp, bool] = field(default_factory=dict)
-    low_before_high_details: list[dict[str, float | pd.Timestamp]] = field(
+    low_before_high_details: list[dict[str, float | str | pd.Timestamp]] = field(
         default_factory=list
     )
 
@@ -96,12 +96,18 @@ def fetch_intraday(
 
 
 def analyze_open_range(
-    df: pd.DataFrame, open_range_minutes: int = 30
+    df: pd.DataFrame,
+    open_range_minutes: int = 30,
+    *,
+    loss_pct: float = 0.35,
+    profit_pct: float = 1.0,
 ) -> OpenRangeBreakTotals:
     """Analyze opening range breaks for each trading day.
 
     ``open_range_minutes`` specifies how many minutes after 9:30am EST make up
-    the opening range.
+    the opening range. ``loss_pct`` and ``profit_pct`` configure the
+    intraday stop loss and profit target percentages used when simulating
+    trades after the opening range.
 
     Returns an :class:`OpenRangeBreakTotals` instance summarizing statistics for
     each day analyzed. ``closed_higher_than_open`` counts the number of days the
@@ -162,11 +168,13 @@ def analyze_open_range(
         if or_high_time < or_low_time:
             if after_or_price > open_price * 1.002:
                 buy = after_or_price
-                if(rest_of_day["Low"].min() < buy * 0.9965):
-                    sell = buy * 0.9965
-                else:
-                    sell = close_price
-                profit = ((sell-buy)/buy)*100
+                outcome, sell = determine_gain_or_loss(
+                    rest_of_day,
+                    buy_price=buy,
+                    loss_pct=loss_pct,
+                    profit_pct=profit_pct,
+                )
+                profit = ((sell - buy) / buy) * 100
                 totals.total_trades += 1
                 totals.total_profit += profit
                 totals.low_before_high_details.append(
@@ -177,7 +185,8 @@ def analyze_open_range(
                         "or_low": float(or_low),
                         "or_high": float(or_high),
                         "after_OR": float(after_or_price),
-                        "profit" : float(profit)
+                        "profit": float(profit),
+                        "result": outcome,
                     }
                 )
             totals.or_high_before_low += 1
@@ -249,6 +258,45 @@ def calculate_open_range_pct(
     return pd.Series(pct_values).sort_index()
 
 
+def determine_gain_or_loss(
+    rest_of_day: pd.DataFrame,
+    buy_price: float,
+    loss_pct: float,
+    profit_pct: float,
+) -> tuple[str, float]:
+    """Return the trade outcome and exit price.
+
+    ``rest_of_day`` should contain intraday data from the time of entry until
+    the end of the trading day with ``High`` and ``Low`` columns. ``buy_price``
+    is the entry price. ``loss_pct`` and ``profit_pct`` are percentages that
+    define the stop loss and profit target.
+
+    The function returns a tuple ``(result, exit_price)`` where ``result`` is
+    ``"profit"`` if the profit target is hit first, ``"loss"`` if the stop loss
+    is triggered first and ``"close"`` if neither target is reached. The
+    ``exit_price`` reflects the price at which the trade would close.
+    """
+
+    if rest_of_day.empty:
+        return "close", buy_price
+
+    stop_price = buy_price * (1 - loss_pct / 100)
+    target_price = buy_price * (1 + profit_pct / 100)
+
+    loss_hit = rest_of_day[rest_of_day["Low"] <= stop_price]
+    profit_hit = rest_of_day[rest_of_day["High"] >= target_price]
+
+    if loss_hit.empty and profit_hit.empty:
+        return "close", float(rest_of_day.iloc[-1]["Close"])
+
+    if not profit_hit.empty and (
+        loss_hit.empty or profit_hit.index[0] < loss_hit.index[0]
+    ):
+        return "profit", target_price
+
+    return "loss", stop_price
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze opening range breaks")
     parser.add_argument(
@@ -270,6 +318,18 @@ def main() -> None:
         type=int,
         default=30,
         help="Opening range in minutes (default 30)",
+    )
+    parser.add_argument(
+        "--loss-pct",
+        type=float,
+        default=0.35,
+        help="Stop loss percentage from entry price (default 0.35)",
+    )
+    parser.add_argument(
+        "--profit-pct",
+        type=float,
+        default=1.0,
+        help="Profit target percentage from entry price (default 1.0)",
     )
     args = parser.parse_args()
 
@@ -303,7 +363,12 @@ def main() -> None:
         # Calculate open range percentages for plotting
         or_pct = calculate_open_range_pct(df, open_range_minutes=args.range)
 
-        results = analyze_open_range(df, open_range_minutes=args.range)
+        results = analyze_open_range(
+            df,
+            open_range_minutes=args.range,
+            loss_pct=args.loss_pct,
+            profit_pct=args.profit_pct,
+        )
 
         print(f"Results for {ticker}:")
         print(f"  Total days analyzed: {results.total_days}")
@@ -334,7 +399,7 @@ def main() -> None:
                 print(
                     f"    {date_str} - Open: {item['open']:.2f}, OR Low: {item['or_low']:.2f}, "
                     f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}, After OR Price: {item['after_OR']:.2f}, "
-                    f"Profit: {item['profit']:.2f}"
+                    f"Profit: {item['profit']:.2f} ({item['result']})"
                 )
         time.sleep(0.1)
 

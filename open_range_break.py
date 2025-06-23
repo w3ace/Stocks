@@ -122,7 +122,6 @@ def analyze_open_range(
         open_price = morning.iloc[0]["Open"]
         close_price = day_df.iloc[-1]["Close"]
         after_or_price = near_closing.iloc[0]["Open"]
-        print(near_closing)
         if close_price > open_price:
             totals.closed_higher_than_open += 1
         if or_high_time < or_low_time:

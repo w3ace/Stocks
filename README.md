@@ -25,3 +25,7 @@ reads tickers from `portfolios/M9.txt` which might contain:
 ```
 AMZN MSFT AAPL NVDA META GOOG TSLA MU AVGO
 ```
+
+If you omit both `--period` and `--start`, `open_range_break.py` will
+analyze a single day automatically. When run before 9:30 AM US/Eastern it
+uses the previous trading day; otherwise it uses the current day.

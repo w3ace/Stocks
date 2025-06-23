@@ -153,10 +153,10 @@ def analyze_open_range(
         after_or_price = near_closing.iloc[0]["Open"]
 
 
-        print(
-            f"    {pd.to_datetime(date)} - Open: {open_price:.2f},  Close: {close_price:.2f}, OR Low: {or_low:.2f}, "
-            f"OR High: {or_high:.2f}, After OR Price: {after_or_price:.2f}, "
-        )
+#      `print(
+#            f"    {pd.to_datetime(date)} - Open: {open_price:.2f},  Close: {close_price:.2f}, OR Low: {or_low:.2f}, "
+#            f"OR High: {or_high:.2f}, After OR Price: {after_or_price:.2f}, "
+#        )
 
 
 
@@ -165,30 +165,30 @@ def analyze_open_range(
         """ buy condition: 
             OR high before OR low and settlement close > open    
         """
+        if after_or_price > open_price * 1.00:
+            buy = after_or_price
+            outcome, sell = determine_gain_or_loss(
+                rest_of_day,
+                buy_price=buy,
+                loss_pct=loss_pct,
+                profit_pct=profit_pct,
+            )
+            profit = ((sell - buy) / buy) * 100
+            totals.total_trades += 1
+            totals.total_profit += profit
+            totals.low_before_high_details.append(
+                {
+                    "date": pd.to_datetime(date),
+                    "open": float(open_price),
+                    "close": float(close_price),
+                    "or_low": float(or_low),
+                    "or_high": float(or_high),
+                    "buy_price": float(buy),
+                    "profit": float(profit),
+                    "result": outcome,
+                }
+            )
         if or_high_time < or_low_time:
-            if after_or_price > open_price * 1.002:
-                buy = after_or_price
-                outcome, sell = determine_gain_or_loss(
-                    rest_of_day,
-                    buy_price=buy,
-                    loss_pct=loss_pct,
-                    profit_pct=profit_pct,
-                )
-                profit = ((sell - buy) / buy) * 100
-                totals.total_trades += 1
-                totals.total_profit += profit
-                totals.low_before_high_details.append(
-                    {
-                        "date": pd.to_datetime(date),
-                        "open": float(open_price),
-                        "close": float(close_price),
-                        "or_low": float(or_low),
-                        "or_high": float(or_high),
-                        "after_OR": float(after_or_price),
-                        "profit": float(profit),
-                        "result": outcome,
-                    }
-                )
             totals.or_high_before_low += 1
             if close_price > open_price:
                 totals.high_before_low_close_up += 1
@@ -374,6 +374,7 @@ def main() -> None:
         print(f"  Total days analyzed: {results.total_days}")
         print(f"  Total trades: {results.total_trades}")
         print(f"  Total profit: {results.total_profit}")
+        """
         print(
             f"  Days closed higher than open: {results.closed_higher_than_open} "
             f"({(results.closed_higher_than_open / results.total_days * 100 if results.total_days else 0):.2f}%)"
@@ -389,16 +390,17 @@ def main() -> None:
             f"  Close higher than open when OR high before low: {results.high_before_low_close_up} "
             f"({(results.high_before_low_close_up / results.or_high_before_low * 100 if results.or_high_before_low else 0):.2f}%)"
         )
+        """
         super_total_trades += results.total_trades
         super_total_profit += results.total_profit
 
-        if results.low_before_high_details:
+        if results.low_before_high_details and results.total_profit > 2.5:
             print("  Days with close higher than open when OR low before high:")
             for item in results.low_before_high_details:
                 date_str = item["date"].strftime("%Y-%m-%d")
                 print(
                     f"    {date_str} - Open: {item['open']:.2f}, OR Low: {item['or_low']:.2f}, "
-                    f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}, After OR Price: {item['after_OR']:.2f}, "
+                    f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}, Buy Price: {item['buy_price']:.2f}, "
                     f"Profit: {item['profit']:.2f} ({item['result']})"
                 )
         time.sleep(0.1)

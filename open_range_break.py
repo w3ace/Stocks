@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
+import time
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -144,6 +145,15 @@ def analyze_open_range(
         open_price = morning.iloc[0]["Open"]
         close_price = day_df.iloc[-1]["Close"]
         after_or_price = near_closing.iloc[0]["Open"]
+
+
+        print(
+            f"    {pd.to_datetime(date)} - Open: {open_price:.2f},  Close: {close_price:.2f}, OR Low: {or_low:.2f}, "
+            f"OR High: {or_high:.2f}, After OR Price: {after_or_price:.2f}, "
+        )
+
+
+
         if close_price > open_price:
             totals.closed_higher_than_open += 1
         """ buy condition: 
@@ -284,7 +294,7 @@ def main() -> None:
                     start -= pd.Timedelta(days=1)
                 elif start.dayofweek == 6:  # Sunday -> use previous Friday
                     start -= pd.Timedelta(days=2)
-                end = start
+                end = start + pd.Timedelta(days=1)
             else:
                 start = end = now.normalize()
         interval = args.interval or choose_yfinance_interval(start=start, end=end)
@@ -303,13 +313,13 @@ def main() -> None:
             f"  Days closed higher than open: {results.closed_higher_than_open} "
             f"({(results.closed_higher_than_open / results.total_days * 100 if results.total_days else 0):.2f}%)"
         )
-#        print(f"  Broke low before high: {results.broke_low_first} ({(results.broke_low_first / results.total_days * 100 if results.total_days else 0):.2f}%)")
-#        print(f"  Broke low then above high: {results.broke_low_then_high} ({(results.broke_low_then_high / results.total_days * 100 if results.total_days else 0):.2f}%)")
-#        print(f"  Broke high before low: {results.broke_high_first} ({(results.broke_high_first / results.total_days * 100 if results.total_days else 0):.2f}%)")
-#        print(f"  Broke high then low: {results.broke_high_then_low} ({(results.broke_high_then_low / results.total_days * 100 if results.total_days else 0):.2f}%)")
-#        print(f"  OR high before low: {results.or_high_before_low} ({(results.or_high_before_low / results.total_days * 100 if results.total_days else 0):.2f}%)")
-#        print(f"  OR low before high: {results.or_low_before_high} ({(results.or_low_before_high / results.total_days * 100 if results.total_days else 0):.2f}%)")
-#        print(f"  Close higher than open when OR low before high: {results.low_before_high_close_up} ({(results.low_before_high_close_up / results.or_low_before_high * 100 if results.or_low_before_high else 0):.2f}%)")
+        print(f"  Broke low before high: {results.broke_low_first} ({(results.broke_low_first / results.total_days * 100 if results.total_days else 0):.2f}%)")
+        print(f"  Broke low then above high: {results.broke_low_then_high} ({(results.broke_low_then_high / results.total_days * 100 if results.total_days else 0):.2f}%)")
+        print(f"  Broke high before low: {results.broke_high_first} ({(results.broke_high_first / results.total_days * 100 if results.total_days else 0):.2f}%)")
+        print(f"  Broke high then low: {results.broke_high_then_low} ({(results.broke_high_then_low / results.total_days * 100 if results.total_days else 0):.2f}%)")
+        print(f"  OR high before low: {results.or_high_before_low} ({(results.or_high_before_low / results.total_days * 100 if results.total_days else 0):.2f}%)")
+        print(f"  OR low before high: {results.or_low_before_high} ({(results.or_low_before_high / results.total_days * 100 if results.total_days else 0):.2f}%)")
+        print(f"  Close higher than open when OR low before high: {results.low_before_high_close_up} ({(results.low_before_high_close_up / results.or_low_before_high * 100 if results.or_low_before_high else 0):.2f}%)")
         print(
             f"  Close higher than open when OR high before low: {results.high_before_low_close_up} "
             f"({(results.high_before_low_close_up / results.or_high_before_low * 100 if results.or_high_before_low else 0):.2f}%)"
@@ -326,6 +336,7 @@ def main() -> None:
                     f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}, After OR Price: {item['after_OR']:.2f}, "
                     f"Profit: {item['profit']:.2f}"
                 )
+        time.sleep(0.1)
 
 #        if not or_pct.empty:
 #            ax = or_pct.plot(title=f"Opening Range % for {ticker}")

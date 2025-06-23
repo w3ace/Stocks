@@ -22,10 +22,10 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
     try:
         if start_date and end_date:
             data = yf.download(
-                symbol, interval=interval, start=start_date, end=end_date
+                symbol, interval=interval, start=start_date, end=end_date, auto_adjust=True
             )
         else:
-            data = yf.download(symbol, interval=interval, period=period)
+            data = yf.download(symbol, interval=interval, period=period, auto_adjust=True)
 
         if data.empty:
             logging.warning(f"No data returned for {symbol}")

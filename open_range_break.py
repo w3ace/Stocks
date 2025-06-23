@@ -279,7 +279,12 @@ def main() -> None:
             now = pd.Timestamp.now(tz="US/Eastern")
             nine_thirty = pd.Timestamp("09:30", tz="US/Eastern").time()
             if now.time() < nine_thirty:
-                start = end = (now - pd.Timedelta(days=1)).normalize()
+                start = (now - pd.Timedelta(days=1)).normalize()
+                if start.dayofweek == 5:  # Saturday -> use previous Friday
+                    start -= pd.Timedelta(days=1)
+                elif start.dayofweek == 6:  # Sunday -> use previous Friday
+                    start -= pd.Timedelta(days=2)
+                end = start
             else:
                 start = end = now.normalize()
         interval = args.interval or choose_yfinance_interval(start=start, end=end)

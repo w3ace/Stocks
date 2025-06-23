@@ -9,3 +9,19 @@ between the previous day's close (4 PM) and the next day's open at
 The opening range (the first hour high/low difference) is reported as
 `Open_Range_Pct` relative to the day's open with a running total
 `Cumulative_Open_Range_Pct`.
+
+## Portfolios
+
+`open_range_break.py` supports saved portfolios. Prefix a portfolio name
+with `+` to load tickers from a file in the `portfolios` directory. For
+example, running:
+
+```
+python open_range_break.py +M9 --period 6mo
+```
+
+reads tickers from `portfolios/M9.txt` which might contain:
+
+```
+AMZN MSFT AAPL NVDA META GOOG TSLA MU AVGO
+```

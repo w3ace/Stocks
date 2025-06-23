@@ -338,6 +338,13 @@ def main() -> None:
     super_total_trades = 0
     super_total_profit = 0
 
+    all_trades: list[dict[str, float | str | pd.Timestamp]] = []
+    ticker_rows: list[dict[str, float | str]] = []
+
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
+    timestamp = pd.Timestamp.now(tz="US/Eastern").strftime("%Y%m%d_%H%M%S")
+
     for ticker in tickers:
         if args.start:
             start = pd.to_datetime(args.start)
@@ -403,6 +410,23 @@ def main() -> None:
                     f"OR High: {item['or_high']:.2f}, Close: {item['close']:.2f}, Buy Price: {item['buy_price']:.2f}, "
                     f"Profit: {item['profit']:.2f} ({item['result']})"
                 )
+
+        successes = sum(1 for d in results.low_before_high_details if d["profit"] > 0)
+        success_pct = (successes / results.total_trades * 100) if results.total_trades else 0
+        ticker_rows.append(
+            {
+                "ticker": ticker,
+                "total_trades": results.total_trades,
+                "trade_success_pct": success_pct,
+                "total_profit": results.total_profit,
+            }
+        )
+
+        for item in results.low_before_high_details:
+            trade = item.copy()
+            trade["ticker"] = ticker
+            all_trades.append(trade)
+
         time.sleep(0.1)
 
 #        if not or_pct.empty:
@@ -418,8 +442,19 @@ def main() -> None:
 #            plt.tight_layout()
 #            plt.show()
 
-    print("Total Trades:",super_total_trades)
-    print("Total Profit:",super_total_profit)
+    trades_path = output_dir / f"{timestamp}_trades.csv"
+    tickers_path = output_dir / f"{timestamp}_tickers.csv"
+
+    if all_trades:
+        pd.DataFrame(all_trades).to_csv(trades_path, index=False)
+        print(f"Trades saved to {trades_path}")
+
+    if ticker_rows:
+        pd.DataFrame(ticker_rows).to_csv(tickers_path, index=False)
+        print(f"Ticker summary saved to {tickers_path}")
+
+    print("Total Trades:", super_total_trades)
+    print("Total Profit:", super_total_profit)
 
 if __name__ == "__main__":
     main()

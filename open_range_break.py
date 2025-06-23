@@ -1,6 +1,7 @@
 import argparse
 from dataclasses import dataclass, field
 from datetime import timedelta
+from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -29,6 +30,27 @@ class OpenRangeBreakTotals:
     low_before_high_details: list[dict[str, float | pd.Timestamp]] = field(
         default_factory=list
     )
+
+
+def expand_ticker_args(ticker_args: list[str]) -> list[str]:
+    """Expand any portfolio references in ``ticker_args``.
+
+    Tickers beginning with ``+`` are treated as portfolio names. The
+    corresponding file in ``./portfolios`` is read and the contained
+    tickers are added to the list.
+    """
+    expanded: list[str] = []
+    for token in ticker_args:
+        if token.startswith("+"):
+            name = token[1:]
+            path = Path("portfolios") / f"{name}.txt"
+            if path.exists():
+                expanded.extend(path.read_text().split())
+            else:
+                print(f"Portfolio file not found: {path}")
+        else:
+            expanded.append(token)
+    return expanded
 
 
 def fetch_intraday(
@@ -238,10 +260,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    super_total_trades = 0;
-    super_total_profit = 0;
+    tickers = expand_ticker_args(args.ticker)
 
-    for ticker in args.ticker:
+    super_total_trades = 0
+    super_total_profit = 0
+
+    for ticker in tickers:
         if args.start and args.end:
             start = pd.to_datetime(args.start)
             end = pd.to_datetime(args.end)

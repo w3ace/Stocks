@@ -8,3 +8,4 @@ Desktop.ini
 *.csv
 .~lock*
 API_KEY.txt
+yfinance_cache/

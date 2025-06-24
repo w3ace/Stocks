@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -36,6 +37,15 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
         Interval for intraday data. Daily data is always downloaded at ``1d``.
     """
     try:
+        if end_date:
+            try:
+                end_dt = pd.to_datetime(end_date)
+                now = pd.Timestamp.now(tz=end_dt.tzinfo) if end_dt.tzinfo else pd.Timestamp.now()
+                if end_dt.normalize() == now.normalize() and end_dt.time() == datetime.min.time():
+                    end_date = now
+            except Exception:
+                pass
+
         cache_file = _cache_path(symbol, start_date, end_date, period, interval)
 
         # Do not cache if the requested end date is today and the current time

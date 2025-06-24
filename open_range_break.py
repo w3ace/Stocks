@@ -526,6 +526,7 @@ def main() -> None:
             "profit",
             "buy_time",
             "sell_time",
+            "result",
             "minutes",
         ]
         trades_df = trades_df[[c for c in desired_cols if c in trades_df.columns]]
@@ -546,6 +547,9 @@ def main() -> None:
         for col in ["buy_time", "sell_time"]:
             if col in trades_df.columns:
                 trades_df[col] = pd.to_datetime(trades_df[col]).dt.strftime("%H:%M")
+
+        if "result" in trades_df.columns:
+            trades_df = trades_df.rename(columns={"result": "profit_or_loss"})
 
         trades_df.to_csv(trades_path, index=False)
         if args.trades:

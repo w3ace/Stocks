@@ -23,6 +23,10 @@ def _cache_path(symbol, start_date, end_date, period, interval):
 def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
     """Return intraday and daily data for ``symbol`` using *yfinance*.
 
+    Results are cached to avoid repeated downloads. When requesting data for
+    the current trading day, caching is disabled until after the US/Eastern
+    market close (4pm) to ensure partial intraday data is not stored.
+
     Parameters
     ----------
     symbol : str
@@ -55,14 +59,14 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
         # Do not cache if the requested end date is today and the current time
         # is before 4pm US/Eastern.  After 4pm, caching is allowed.
         cache_enabled = True
+        now_est = pd.Timestamp.now(tz="US/Eastern")
+        four_pm = pd.Timestamp("16:00", tz="US/Eastern").time()
         if end_date:
             try:
                 end_dt = pd.to_datetime(end_date)
                 if end_dt.tzinfo is None:
                     end_dt = end_dt.tz_localize("UTC")
                 end_dt_est = end_dt.tz_convert("US/Eastern")
-                now_est = pd.Timestamp.now(tz="US/Eastern")
-                four_pm = pd.Timestamp("16:00", tz="US/Eastern").time()
                 if (
                     end_dt_est.normalize() == now_est.normalize()
                     and now_est.time() < four_pm
@@ -70,6 +74,9 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
                     cache_enabled = False
             except Exception:
                 pass
+        else:
+            if now_est.time() < four_pm:
+                cache_enabled = False
 
         if cache_enabled and cache_file.exists():
             try:

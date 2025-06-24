@@ -519,6 +519,21 @@ def main() -> None:
             "minutes",
         ]
         trades_df = trades_df[[c for c in desired_cols if c in trades_df.columns]]
+
+        if "date" in trades_df.columns:
+            trades_df["date"] = pd.to_datetime(trades_df["date"]).dt.strftime("%Y-%m-%d")
+
+        if "time" in trades_df.columns:
+            trades_df = trades_df.drop(columns=["time"])
+
+        for col in ["open", "close", "buy_price", "stop_price"]:
+            if col in trades_df.columns:
+                trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
+
+        for col in ["buy_time", "sell_time"]:
+            if col in trades_df.columns:
+                trades_df[col] = pd.to_datetime(trades_df[col]).dt.strftime("%H:%M")
+
         trades_df.to_csv(trades_path, index=False)
         print(f"Trades saved to {trades_path}")
 

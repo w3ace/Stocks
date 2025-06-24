@@ -1,4 +1,9 @@
 import argparse
+
+try:
+    from tabulate import tabulate
+except Exception:  # ImportError or other
+    tabulate = None
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -387,6 +392,11 @@ def main() -> None:
         default=1.0,
         help="Profit target percentage from entry price (default 1.0)",
     )
+    parser.add_argument(
+        "--trades",
+        action="store_true",
+        help="Print all trades to console in an ASCII table",
+    )
     args = parser.parse_args()
 
     tickers = expand_ticker_args(args.ticker)
@@ -526,15 +536,23 @@ def main() -> None:
         if "time" in trades_df.columns:
             trades_df = trades_df.drop(columns=["time"])
 
-        for col in ["open", "close", "buy_price", "stop_price"]:
+        for col in ["open", "close", "buy_price", "stop_price", "profit_price"]:
             if col in trades_df.columns:
                 trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
+
+        if "profit" in trades_df.columns:
+            trades_df["profit"] = trades_df["profit"].map(lambda x: f"{x:.2f}")
 
         for col in ["buy_time", "sell_time"]:
             if col in trades_df.columns:
                 trades_df[col] = pd.to_datetime(trades_df[col]).dt.strftime("%H:%M")
 
         trades_df.to_csv(trades_path, index=False)
+        if args.trades:
+            if tabulate:
+                print(tabulate(trades_df, headers="keys", tablefmt="grid", showindex=False))
+            else:
+                print(trades_df.to_string(index=False))
         print(f"Trades saved to {trades_path}")
 
     if ticker_rows:

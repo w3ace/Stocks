@@ -432,10 +432,6 @@ def main() -> None:
             profit_pct=args.profit_pct,
         )
 
-        print(f"Results for {ticker}:")
-        print(f"  Total days analyzed: {results.total_days}")
-        print(f"  Total trades: {results.total_trades}")
-        print(f"  Total profit: {results.total_profit}")
         """
         print(
             f"  Days closed higher than open: {results.closed_higher_than_open} "
@@ -453,11 +449,17 @@ def main() -> None:
             f"({(results.high_before_low_close_up / results.or_high_before_low * 100 if results.or_high_before_low else 0):.2f}%)"
         )
         """
+
+
+        print(f"Results for {ticker}:")
+
         super_total_trades += results.total_trades
         super_total_profit += results.total_profit
 
-        if results.low_before_high_details and results.total_profit > 2.5:
-            print("  Days with close higher than open when OR low before high:")
+        if results.low_before_high_details and results.total_profit > 1.9:
+            print(f"  Total days analyzed: {results.total_days}")
+            print(f"  Total trades: {results.total_trades}")
+            print(f"  Total profit: {results.total_profit}")
             for item in results.low_before_high_details:
                 date_str = item["date"].strftime("%Y-%m-%d")
                 print(
@@ -482,7 +484,7 @@ def main() -> None:
             trade["ticker"] = ticker
             all_trades.append(trade)
 
-        time.sleep(0.1)
+  #      time.sleep(0.1)
 
 #        if not or_pct.empty:
 #            ax = or_pct.plot(title=f"Opening Range % for {ticker}")

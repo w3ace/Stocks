@@ -41,7 +41,12 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
                 end_dt = pd.to_datetime(end_date)
                 now = pd.Timestamp.now(tz=end_dt.tzinfo) if end_dt.tzinfo else pd.Timestamp.now()
                 if end_dt.normalize() == now.normalize():
-                    end_date = now - pd.Timedelta(minutes=5)
+                    now_est = now.tz_convert("US/Eastern") if now.tzinfo else now.tz_localize("UTC").tz_convert("US/Eastern")
+                    four_pm_est = now_est.normalize() + pd.Timedelta(hours=16)
+                    if now_est >= four_pm_est:
+                        end_date = four_pm_est
+                    else:
+                        end_date = now - pd.Timedelta(minutes=5)
             except Exception:
                 pass
 

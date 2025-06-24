@@ -36,3 +36,4 @@ control the intraday profit target and stop loss percentages when a trade
 is taken after the opening range.
 
 When the analysis completes, all trades are written to `./output/<timestamp>_trades.csv` and a per-ticker summary is saved to `./output/<timestamp>_tickers.csv`. The summary lists the total number of trades, the percentage of profitable trades, and the cumulative profit for each ticker.
+The trades file includes a `profit_or_loss` column after `sell_time` showing whether each trade hit the profit target, stop loss, or closed at the end of the day.

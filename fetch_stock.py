@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,8 +40,8 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
             try:
                 end_dt = pd.to_datetime(end_date)
                 now = pd.Timestamp.now(tz=end_dt.tzinfo) if end_dt.tzinfo else pd.Timestamp.now()
-                if end_dt.normalize() == now.normalize() and end_dt.time() == datetime.min.time():
-                    end_date = now
+                if end_dt.normalize() == now.normalize():
+                    end_date = now - pd.Timedelta(minutes=5)
             except Exception:
                 pass
 

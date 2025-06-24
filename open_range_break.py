@@ -23,6 +23,7 @@ class OpenRangeBreakTotals:
     total_days: int = 0
     total_trades: int = 0
     total_profit: float = 0.0
+    total_top_profit: float = 0.0
     closed_higher_than_open: int = 0
     broke_low_first: int = 0
     broke_low_then_high: int = 0
@@ -173,13 +174,14 @@ def analyze_open_range(
         """
         if after_or_price > open_price * 1.00:
             buy = after_or_price
-            outcome, sell, sell_time = determine_gain_or_loss(
+            outcome, sell, sell_time, top_price = determine_gain_or_loss(
                 rest_of_day,
                 buy_price=buy,
                 loss_pct=loss_pct,
                 profit_pct=profit_pct,
             )
             profit = ((sell - buy) / buy) * 100
+            top_profit_pct = ((top_price - buy) / buy) * 100
             minutes = (
                 (sell_time - after_or_time).total_seconds() / 60
                 if pd.notna(sell_time)
@@ -189,6 +191,7 @@ def analyze_open_range(
             target_price = buy * (1 + profit_pct / 100)
             totals.total_trades += 1
             totals.total_profit += profit
+            totals.total_top_profit += top_profit_pct
             totals.low_before_high_details.append(
                 {
                     "date": pd.to_datetime(date),
@@ -201,6 +204,7 @@ def analyze_open_range(
                     "stop_price": float(stop_price),
                     "profit_price": float(target_price),
                     "profit": float(profit),
+                    "top_profit": float(top_price),
                     "result": outcome,
                     "buy_time": after_or_time,
                     "sell_time": sell_time,
@@ -309,23 +313,24 @@ def determine_gain_or_loss(
     buy_price: float,
     loss_pct: float,
     profit_pct: float,
-) -> tuple[str, float, pd.Timestamp]:
-    """Return the trade outcome, exit price and time.
+) -> tuple[str, float, pd.Timestamp, float]:
+    """Return the trade outcome, exit price, time and top price.
 
     ``rest_of_day`` should contain intraday data from the time of entry until
     the end of the trading day with ``High`` and ``Low`` columns. ``buy_price``
     is the entry price. ``loss_pct`` and ``profit_pct`` are percentages that
     define the stop loss and profit target.
 
-    The function returns a tuple ``(result, exit_price, exit_time)`` where
-    ``result`` is ``"profit"`` if the profit target is hit first, ``"loss"`` if
-    the stop loss is triggered first and ``"close"`` if neither target is
-    reached. ``exit_price`` is the price at which the trade would close and
-    ``exit_time`` is the timestamp of that event.
+    The function returns a tuple ``(result, exit_price, exit_time, top_price)``
+    where ``result`` is ``"profit"`` if the profit target is hit first,
+    ``"loss"`` if the stop loss is triggered first and ``"close"`` if neither
+    target is reached. ``exit_price`` is the price at which the trade would
+    close, ``exit_time`` is the timestamp of that event and ``top_price`` is the
+    highest price reached before the trade exited.
     """
 
     if rest_of_day.empty:
-        return "close", buy_price, pd.NaT
+        return "close", buy_price, pd.NaT, buy_price
 
     stop_price = buy_price * (1 - loss_pct / 100)
     target_price = buy_price * (1 + profit_pct / 100)
@@ -334,11 +339,10 @@ def determine_gain_or_loss(
     profit_hit = rest_of_day[rest_of_day["High"] >= target_price]
 
     if loss_hit.empty and profit_hit.empty:
-        return (
-            "close",
-            float(rest_of_day.iloc[-1]["Close"]),
-            rest_of_day.index[-1],
-        )
+        exit_time = rest_of_day.index[-1]
+        exit_price = float(rest_of_day.iloc[-1]["Close"])
+        top_price = float(rest_of_day["High"].max())
+        return "close", exit_price, exit_time, top_price
 
     first_loss_time = loss_hit.index[0] if not loss_hit.empty else None
     first_profit_time = profit_hit.index[0] if not profit_hit.empty else None
@@ -346,16 +350,23 @@ def determine_gain_or_loss(
     if first_profit_time is not None and (
         first_loss_time is None or first_profit_time < first_loss_time
     ):
-        return "profit", target_price, first_profit_time
+        exit_time = first_profit_time
+        exit_price = target_price
+        subset = rest_of_day.loc[:exit_time]
+        top_price = float(subset["High"].max())
+        return "profit", exit_price, exit_time, top_price
     if first_loss_time is not None:
-        return "loss", stop_price, first_loss_time
+        exit_time = first_loss_time
+        exit_price = stop_price
+        subset = rest_of_day.loc[:exit_time]
+        top_price = float(subset["High"].max())
+        return "loss", exit_price, exit_time, top_price
 
     # Should not reach here but return close at end of day as fallback
-    return (
-        "close",
-        float(rest_of_day.iloc[-1]["Close"]),
-        rest_of_day.index[-1],
-    )
+    exit_time = rest_of_day.index[-1]
+    exit_price = float(rest_of_day.iloc[-1]["Close"])
+    top_price = float(rest_of_day.loc[:exit_time]["High"].max())
+    return "close", exit_price, exit_time, top_price
 
 
 def main() -> None:
@@ -397,12 +408,18 @@ def main() -> None:
         action="store_true",
         help="Print all trades to console in an ASCII table",
     )
+    parser.add_argument(
+        "--tickers",
+        action="store_true",
+        help="Print per-ticker summary to console in an ASCII table",
+    )
     args = parser.parse_args()
 
     tickers = expand_ticker_args(args.ticker)
 
     super_total_trades = 0
     super_total_profit = 0
+    super_total_top_profit = 0
 
     all_trades: list[dict[str, float | str | pd.Timestamp]] = []
     ticker_rows: list[dict[str, float | str]] = []
@@ -465,6 +482,7 @@ def main() -> None:
 
         super_total_trades += results.total_trades
         super_total_profit += results.total_profit
+        super_total_top_profit += results.total_top_profit
 
         if results.low_before_high_details and results.total_profit > 1.9:
             print(f"  Total days analyzed: {results.total_days}")
@@ -486,6 +504,7 @@ def main() -> None:
                 "total_trades": results.total_trades,
                 "trade_success_pct": success_pct,
                 "total_profit": results.total_profit,
+                "total_top_profit": results.total_top_profit,
             }
         )
 
@@ -523,6 +542,7 @@ def main() -> None:
             "buy_price",
             "stop_price",
             "profit_price",
+            "top_profit",
             "profit",
             "buy_time",
             "sell_time",
@@ -537,7 +557,7 @@ def main() -> None:
         if "time" in trades_df.columns:
             trades_df = trades_df.drop(columns=["time"])
 
-        for col in ["open", "close", "buy_price", "stop_price", "profit_price"]:
+        for col in ["open", "close", "buy_price", "stop_price", "profit_price", "top_profit"]:
             if col in trades_df.columns:
                 trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
 
@@ -560,11 +580,21 @@ def main() -> None:
         print(f"Trades saved to {trades_path}")
 
     if ticker_rows:
-        pd.DataFrame(ticker_rows).to_csv(tickers_path, index=False)
+        tickers_df = pd.DataFrame(ticker_rows)
+        for col in ["trade_success_pct", "total_profit", "total_top_profit"]:
+            if col in tickers_df.columns:
+                tickers_df[col] = tickers_df[col].map(lambda x: f"{x:.2f}")
+        tickers_df.to_csv(tickers_path, index=False)
+        if args.tickers:
+            if tabulate:
+                print(tabulate(tickers_df, headers="keys", tablefmt="grid", showindex=False))
+            else:
+                print(tickers_df.to_string(index=False))
         print(f"Ticker summary saved to {tickers_path}")
 
     print("Total Trades:", super_total_trades)
     print("Total Profit:", super_total_profit)
+    print("Total Top Profit:", super_total_top_profit)
 
 if __name__ == "__main__":
     main()

@@ -272,6 +272,33 @@ def calculate_open_range_pct(
     return pd.Series(pct_values).sort_index()
 
 
+def open_range_break(
+    ticker: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    *,
+    interval: str = "5m",
+    open_range_minutes: int = 30,
+    loss_pct: float = 0.35,
+    profit_pct: float = 1.0,
+) -> tuple[OpenRangeBreakTotals, pd.Series]:
+    """Fetch data for ``ticker`` and analyze opening range breaks.
+
+    Returns the :class:`OpenRangeBreakTotals` along with the opening range
+    percentages for plotting.
+    """
+
+    df = fetch_intraday(ticker, start, end, interval=interval)
+    or_pct = calculate_open_range_pct(df, open_range_minutes=open_range_minutes)
+    results = analyze_open_range(
+        df,
+        open_range_minutes=open_range_minutes,
+        loss_pct=loss_pct,
+        profit_pct=profit_pct,
+    )
+    return results, or_pct
+
+
 def determine_gain_or_loss(
     rest_of_day: pd.DataFrame,
     buy_price: float,
@@ -394,13 +421,12 @@ def main() -> None:
             else:
                 start = end = now.normalize()
         interval = args.interval or choose_yfinance_interval(start=start, end=end)
-        df = fetch_intraday(ticker, start, end, interval=interval)
 
-        # Calculate open range percentages for plotting
-        or_pct = calculate_open_range_pct(df, open_range_minutes=args.range)
-
-        results = analyze_open_range(
-            df,
+        results, or_pct = open_range_break(
+            ticker,
+            start,
+            end,
+            interval=interval,
             open_range_minutes=args.range,
             loss_pct=args.loss_pct,
             profit_pct=args.profit_pct,
@@ -480,6 +506,8 @@ def main() -> None:
             "date",
             "time",
             "ticker",
+            "open",
+            "close",
             "buy_price",
             "stop_price",
             "profit_price",

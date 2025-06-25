@@ -66,20 +66,24 @@ def fetch_intraday(
     """Fetch intraday data for ``ticker`` using :func:`fetch_stock`.
 
     ``start`` and ``end`` may be timezone-naive or aware. They are localized to
-    UTC so that comparisons against the fetched data's index work reliably.
+    UTC so that comparisons against the fetched data's index work reliably. The
+    ``start`` time is always normalized to 9:30am US/Eastern before converting to
+    UTC so that yfinance downloads begin at the market open and the cache key
+    remains consistent.
     """
     start = pd.to_datetime(start)
     end = pd.to_datetime(end)
 
-    if start.tzinfo is None:
-        start = start.tz_localize("UTC")
-    else:
-        start = start.tz_convert("UTC")
+    # Normalize the start time to 9:30am US/Eastern for yfinance and caching
+    start_est = start.tz_localize("US/Eastern") if start.tzinfo is None else start.tz_convert("US/Eastern")
+    start_est = start_est.normalize() + pd.Timedelta(hours=9, minutes=30)
+    start = start_est.tz_convert("UTC")
 
-    if end.tzinfo is None:
-        end = end.tz_localize("UTC")
-    else:
-        end = end.tz_convert("UTC")
+    # End time at 4:00pm US/Eastern if no explicit time provided
+    end_est = end.tz_localize("US/Eastern") if end.tzinfo is None else end.tz_convert("US/Eastern")
+    if end_est.time() == pd.Timestamp("00:00", tz="US/Eastern").time():
+        end_est = end_est.normalize() + pd.Timedelta(hours=16)
+    end = end_est.tz_convert("UTC")
 
     data = fetch_stock(ticker, start_date=start, end_date=end, interval=interval)
     if data is None or data.empty:

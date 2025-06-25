@@ -408,6 +408,12 @@ def main() -> None:
         help="Profit target percentage from entry price (default 1.0)",
     )
     parser.add_argument(
+        "--min-profit",
+        type=float,
+        default=1.9,
+        help="Minimum total profit to display details (default 1.9)",
+    )
+    parser.add_argument(
         "--trades",
         action="store_true",
         help="Print all trades to console in an ASCII table",
@@ -427,6 +433,7 @@ def main() -> None:
 
     all_trades: list[dict[str, float | str | pd.Timestamp]] = []
     ticker_rows: list[dict[str, float | str]] = []
+    surpass_tickers: list[str] = []
 
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
@@ -488,7 +495,9 @@ def main() -> None:
         super_total_profit += results.total_profit
         super_total_top_profit += results.total_top_profit
 
-        if results.low_before_high_details and results.total_profit > 1.9:
+        if results.total_profit > args.min_profit:
+            surpass_tickers.append(ticker)
+        if results.low_before_high_details and results.total_profit > args.min_profit:
             print(f"  Total days analyzed: {results.total_days}")
             print(f"  Total trades: {results.total_trades}")
             print(f"  Total profit: {results.total_profit}")
@@ -595,6 +604,9 @@ def main() -> None:
             else:
                 print(tickers_df.to_string(index=False))
         print(f"Ticker summary saved to {tickers_path}")
+
+    if surpass_tickers:
+        print("Tickers surpassing min profit:", " ".join(surpass_tickers))
 
     print("Total Trades:", super_total_trades)
     print("Total Profit:", super_total_profit)

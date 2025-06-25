@@ -50,7 +50,7 @@ def expand_ticker_args(ticker_args: list[str]) -> list[str]:
     for token in ticker_args:
         if token.startswith("+"):
             name = token[1:]
-            path = Path("portfolios") / f"{name}.txt"
+            path = Path("portfolios") / f"{name}"
             if path.exists():
                 expanded.extend(path.read_text().split())
             else:

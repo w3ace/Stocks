@@ -160,6 +160,11 @@ def analyze_open_range(
         or_low_time = morning["Low"].idxmin()
         open_price = morning.iloc[0]["Open"]
         close_price = day_df.iloc[-1]["Close"]
+        if near_closing.empty:
+            # Skip the day if there is no data immediately after the opening
+            # range. Attempting to access ``near_closing.iloc[0]`` would raise
+            # ``IndexError`` otherwise.
+            continue
         after_or_price = near_closing.iloc[0]["Open"]
         after_or_time = near_closing.index[0]
 

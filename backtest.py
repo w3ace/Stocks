@@ -224,7 +224,7 @@ def analyze_open_range(
                     "stop_price": float(stop_price),
                     "profit_price": float(target_price),
                     "profit": float(profit),
-                    "top_profit": float(top_price),
+                    "top_profit": float(top_profit_pct),
                     "result": outcome,
                     "buy_time": after_or_time,
                     "sell_time": sell_time,
@@ -447,7 +447,7 @@ def main() -> None:
         help="Minimum total profit to display details (default 1.9)",
     )
     parser.add_argument(
-        "--trades",
+        "--output-trades",
         action="store_true",
         help="Print all trades to console in an ASCII table",
     )
@@ -455,6 +455,11 @@ def main() -> None:
         "--tickers",
         action="store_true",
         help="Print per-ticker summary to console in an ASCII table",
+    )
+    parser.add_argument(
+        "--output-tickers",
+        action="store_true",
+        help="Output per-ticker metrics table to console",
     )
     args = parser.parse_args()
 
@@ -546,6 +551,8 @@ def main() -> None:
 
         successes = sum(1 for d in results.low_before_high_details if d["profit"] > 0)
         success_pct = (successes / results.total_trades * 100) if results.total_trades else 0
+        minutes_list = [d["minutes"] for d in results.low_before_high_details if d.get("minutes") is not None]
+        avg_minutes = sum(minutes_list) / len(minutes_list) if minutes_list else 0
         ticker_rows.append(
             {
                 "ticker": ticker,
@@ -553,6 +560,7 @@ def main() -> None:
                 "trade_success_pct": success_pct,
                 "total_profit": results.total_profit,
                 "total_top_profit": results.total_top_profit,
+                "avg_trade_time": avg_minutes,
             }
         )
 
@@ -605,12 +613,13 @@ def main() -> None:
         if "time" in trades_df.columns:
             trades_df = trades_df.drop(columns=["time"])
 
-        for col in ["open", "close", "buy_price", "stop_price", "profit_price", "top_profit"]:
+        for col in ["open", "close", "buy_price", "stop_price", "profit_price"]:
             if col in trades_df.columns:
                 trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
 
-        if "profit" in trades_df.columns:
-            trades_df["profit"] = trades_df["profit"].map(lambda x: f"{x:.2f}")
+        for col in ["profit", "top_profit"]:
+            if col in trades_df.columns:
+                trades_df[col] = trades_df[col].map(lambda x: f"{x:.2f}")
 
         for col in ["buy_time", "sell_time"]:
             if col in trades_df.columns:
@@ -620,7 +629,7 @@ def main() -> None:
             trades_df = trades_df.rename(columns={"result": "profit_or_loss"})
 
         trades_df.to_csv(trades_path, index=False)
-        if args.trades:
+        if args.output_trades:
             if tabulate:
                 print(tabulate(trades_df, headers="keys", tablefmt="grid", showindex=False))
             else:
@@ -629,11 +638,11 @@ def main() -> None:
 
     if ticker_rows:
         tickers_df = pd.DataFrame(ticker_rows)
-        for col in ["trade_success_pct", "total_profit", "total_top_profit"]:
+        for col in ["trade_success_pct", "total_profit", "total_top_profit", "avg_trade_time"]:
             if col in tickers_df.columns:
                 tickers_df[col] = tickers_df[col].map(lambda x: f"{x:.2f}")
         tickers_df.to_csv(tickers_path, index=False)
-        if args.tickers:
+        if args.tickers or args.output_tickers:
             if tabulate:
                 print(tabulate(tickers_df, headers="keys", tablefmt="grid", showindex=False))
             else:

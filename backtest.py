@@ -638,9 +638,16 @@ def main() -> None:
 
     if ticker_rows:
         tickers_df = pd.DataFrame(ticker_rows)
+
+        # Order by total profit descending and apply --min-profit filter
+        tickers_df = tickers_df.sort_values(by="total_profit", ascending=False)
+        if args.min_profit is not None:
+            tickers_df = tickers_df[tickers_df["total_profit"] > args.min_profit]
+
         for col in ["trade_success_pct", "total_profit", "total_top_profit", "avg_trade_time"]:
             if col in tickers_df.columns:
                 tickers_df[col] = tickers_df[col].map(lambda x: f"{x:.2f}")
+
         tickers_df.to_csv(tickers_path, index=False)
         if args.tickers or args.output_tickers:
             if tabulate:

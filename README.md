@@ -26,6 +26,9 @@ reads tickers from `portfolios/M9.txt` which might contain:
 AMZN MSFT AAPL NVDA META GOOG TSLA MU AVGO
 ```
 
+Duplicate tickers are ignored, so the portfolio and command-line
+arguments can safely include overlapping symbols.
+
 If you omit both `--period` and `--start`, `backtest.py` will
 analyze a single day automatically. When run before 9:30 AM US/Eastern it
 uses the previous trading day (adjusting for weekends); otherwise it uses

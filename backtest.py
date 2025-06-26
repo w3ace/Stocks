@@ -57,7 +57,9 @@ def expand_ticker_args(ticker_args: list[str]) -> list[str]:
                 print(f"Portfolio file not found: {path}")
         else:
             expanded.append(token)
-    return expanded
+
+    # Remove duplicates while preserving order
+    return list(dict.fromkeys(expanded))
 
 
 def fetch_intraday(

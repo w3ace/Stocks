@@ -111,13 +111,18 @@ def analyze_open_range(
     *,
     loss_pct: float = 0.35,
     profit_pct: float = 1.0,
+    filter: str = "MO",
+    filter_offset: float = 1.0,
 ) -> OpenRangeBreakTotals:
     """Analyze opening range breaks for each trading day.
 
     ``open_range_minutes`` specifies how many minutes after 9:30am EST make up
     the opening range. ``loss_pct`` and ``profit_pct`` configure the
     intraday stop loss and profit target percentages used when simulating
-    trades after the opening range.
+    trades after the opening range. ``filter`` determines how the closing
+    price of the opening range ("Mark") is compared to the day's open when
+    deciding whether to take a trade. ``filter_offset`` is a multiplier used in
+    that comparison.
 
     Returns an :class:`OpenRangeBreakTotals` instance summarizing statistics for
     each day analyzed. ``closed_higher_than_open`` counts the number of days the
@@ -181,7 +186,13 @@ def analyze_open_range(
         """ buy condition: 
             OR high before OR low and settlement close > open    
         """
-        if after_or_price > open_price * 1.00:
+        should_buy = False
+        if filter.upper() == "MO":
+            should_buy = after_or_price > open_price * filter_offset
+        elif filter.upper() == "OM":
+            should_buy = open_price > after_or_price * filter_offset
+
+        if should_buy:
             buy = after_or_price
             outcome, sell, sell_time, top_price = determine_gain_or_loss(
                 rest_of_day,
@@ -299,11 +310,14 @@ def open_range_break(
     open_range_minutes: int = 30,
     loss_pct: float = 0.35,
     profit_pct: float = 1.0,
+    filter: str = "MO",
+    filter_offset: float = 1.0,
 ) -> tuple[OpenRangeBreakTotals, pd.Series]:
     """Fetch data for ``ticker`` and analyze opening range breaks.
 
     Returns the :class:`OpenRangeBreakTotals` along with the opening range
-    percentages for plotting.
+    percentages for plotting. ``filter`` and ``filter_offset`` are passed
+    through to :func:`analyze_open_range`.
     """
 
     df = fetch_intraday(ticker, start, end, interval=interval)
@@ -313,6 +327,8 @@ def open_range_break(
         open_range_minutes=open_range_minutes,
         loss_pct=loss_pct,
         profit_pct=profit_pct,
+        filter=filter,
+        filter_offset=filter_offset,
     )
     return results, or_pct
 
@@ -413,6 +429,18 @@ def main() -> None:
         help="Profit target percentage from entry price (default 1.0)",
     )
     parser.add_argument(
+        "--filter",
+        choices=["MO", "OM"],
+        default="MO",
+        help="Trade filter: MO for Mark > Open or OM for Open > Mark",
+    )
+    parser.add_argument(
+        "--filter-offset",
+        type=float,
+        default=1.0,
+        help="Offset multiplier for filter comparison (default 1.0)",
+    )
+    parser.add_argument(
         "--min-profit",
         type=float,
         default=1.9,
@@ -473,6 +501,8 @@ def main() -> None:
             open_range_minutes=args.range,
             loss_pct=args.loss_pct,
             profit_pct=args.profit_pct,
+            filter=args.filter,
+            filter_offset=args.filter_offset,
         )
 
         """

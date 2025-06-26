@@ -12,12 +12,12 @@ The opening range (the first hour high/low difference) is reported as
 
 ## Portfolios
 
-`open_range_break.py` supports saved portfolios. Prefix a portfolio name
+`backtest.py` supports saved portfolios. Prefix a portfolio name
 with `+` to load tickers from a file in the `portfolios` directory. For
 example, running:
 
 ```
-python open_range_break.py +M9 --period 6mo
+python backtest.py +M9 --period 6mo
 ```
 
 reads tickers from `portfolios/M9.txt` which might contain:
@@ -26,7 +26,7 @@ reads tickers from `portfolios/M9.txt` which might contain:
 AMZN MSFT AAPL NVDA META GOOG TSLA MU AVGO
 ```
 
-If you omit both `--period` and `--start`, `open_range_break.py` will
+If you omit both `--period` and `--start`, `backtest.py` will
 analyze a single day automatically. When run before 9:30 AM US/Eastern it
 uses the previous trading day (adjusting for weekends); otherwise it uses
 the current day.
@@ -34,6 +34,9 @@ the current day.
 The script also provides `--profit-pct` and `--loss-pct` options to
 control the intraday profit target and stop loss percentages when a trade
 is taken after the opening range.
+Use `--filter` to control the relationship between the opening range
+close (Mark) and the day's open that must be satisfied before entering a
+trade. `--filter-offset` multiplies the open price used in that check.
 
 When the analysis completes, all trades are written to `./output/<timestamp>_trades.csv` and a per-ticker summary is saved to `./output/<timestamp>_tickers.csv`. The summary lists the total number of trades, the percentage of profitable trades, and the cumulative profit for each ticker. It also includes `total_top_profit`, the sum of potential profits based on each trade's peak price.
 The trades file includes a `profit_or_loss` column after `sell_time` showing whether each trade hit the profit target, stop loss, or closed at the end of the day.

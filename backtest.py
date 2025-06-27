@@ -595,6 +595,7 @@ def main() -> None:
     tickers_path = output_dir / f"{timestamp}_tickers.csv"
 
     daily_profit = None
+    daily_trades = None
     if all_trades:
         trades_df = pd.DataFrame(all_trades)
         if args.plot == "daily":
@@ -603,6 +604,7 @@ def main() -> None:
                 plot_df["date"] = pd.to_datetime(plot_df["date"]).dt.date
                 if "profit" in plot_df.columns:
                     daily_profit = plot_df.groupby("date")["profit"].sum()
+                daily_trades = plot_df.groupby("date").size()
         desired_cols = [
             "date",
             "time",
@@ -677,11 +679,25 @@ def main() -> None:
     print("Total Profit:", super_total_profit)
     print("Total Top Profit:", super_total_top_profit)
 
-    if args.plot == "daily" and daily_profit is not None and not daily_profit.empty:
-        ax = daily_profit.plot(kind="bar", title="Total Profit by Day")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Total Profit (%)")
-        ax.tick_params(axis="x", rotation=45)
+    if (
+        args.plot == "daily"
+        and daily_profit is not None
+        and not daily_profit.empty
+        and daily_trades is not None
+    ):
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+        ax1.plot(daily_profit.index, daily_profit.values, marker="o")
+        ax1.set_title("Total Profit by Day")
+        ax1.set_ylabel("Total Profit (%)")
+        ax1.grid(True)
+
+        ax2.bar(daily_trades.index, daily_trades.values)
+        ax2.set_title("Total Trades by Day")
+        ax2.set_xlabel("Date")
+        ax2.set_ylabel("Trades")
+        ax2.tick_params(axis="x", rotation=45)
+
         plt.tight_layout()
         plt.show()
 

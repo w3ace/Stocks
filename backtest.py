@@ -596,6 +596,7 @@ def main() -> None:
 
     daily_profit = None
     daily_trades = None
+    daily_trade_types = None
     if all_trades:
         trades_df = pd.DataFrame(all_trades)
         if args.plot == "daily":
@@ -605,6 +606,13 @@ def main() -> None:
                 if "profit" in plot_df.columns:
                     daily_profit = plot_df.groupby("date")["profit"].sum()
                 daily_trades = plot_df.groupby("date").size()
+                if "result" in plot_df.columns:
+                    daily_trade_types = (
+                        plot_df.groupby(["date", "result"]).size().unstack(fill_value=0)
+                    )
+                    daily_trade_types = daily_trade_types.reindex(
+                        daily_profit.index, fill_value=0
+                    )
         desired_cols = [
             "date",
             "time",
@@ -684,21 +692,44 @@ def main() -> None:
         and daily_profit is not None
         and not daily_profit.empty
         and daily_trades is not None
+        and daily_trade_types is not None
     ):
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        x = range(len(daily_profit))
 
-        ax1.plot(daily_profit.index, daily_profit.values, marker="o")
-        ax1.set_title("Total Profit by Day")
-        ax1.set_ylabel("Total Profit (%)")
+        fig, ax1 = plt.subplots(figsize=(10, 6))
+
+        color_profit = "tab:blue"
+        ax1.plot(x, daily_profit.values, marker="o", color=color_profit)
+        ax1.set_ylabel("Total Profit (%)", color=color_profit)
+        ax1.tick_params(axis="y", labelcolor=color_profit)
+        ax1.set_xlabel("Date")
+        ax1.set_title("Total Profit and Trades by Day")
         ax1.grid(True)
 
-        ax2.bar(daily_trades.index, daily_trades.values)
-        ax2.set_title("Total Trades by Day")
-        ax2.set_xlabel("Date")
+        ax2 = ax1.twinx()
+        profit_counts = daily_trade_types.get("profit", pd.Series(0, index=daily_profit.index))
+        close_counts = daily_trade_types.get("close", pd.Series(0, index=daily_profit.index))
+        loss_counts = daily_trade_types.get("loss", pd.Series(0, index=daily_profit.index))
+        bar1 = ax2.bar(x, profit_counts, color="green", alpha=0.6, label="Profit")
+        bar2 = ax2.bar(x, close_counts, bottom=profit_counts, color="blue", alpha=0.6, label="Close")
+        ax2.bar(
+            x,
+            loss_counts,
+            bottom=profit_counts + close_counts,
+            color="red",
+            alpha=0.6,
+            label="Loss",
+        )
         ax2.set_ylabel("Trades")
-        ax2.tick_params(axis="x", rotation=45)
+        ax2.tick_params(axis="y")
+        ax2.legend()
 
-        plt.tight_layout()
+        ax1.set_xticks(list(x))
+        ax1.set_xticklabels(
+            [d.strftime("%Y-%m-%d") for d in daily_profit.index], rotation=45
+        )
+
+        fig.tight_layout()
         plt.show()
 
 if __name__ == "__main__":

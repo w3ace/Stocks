@@ -44,33 +44,30 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
             try:
                 end_dt = pd.to_datetime(end_date)
                 now = pd.Timestamp.now(tz=end_dt.tzinfo) if end_dt.tzinfo else pd.Timestamp.now()
+
                 if end_dt.normalize() == now.normalize():
                     now_est = now.tz_convert("US/Eastern") if now.tzinfo else now.tz_localize("UTC").tz_convert("US/Eastern")
                     four_pm_est = now_est.normalize() + pd.Timedelta(hours=16)
-                    if now_est >= four_pm_est:
-                        end_date = four_pm_est
-                    else:
-                        end_date = now - pd.Timedelta(minutes=5)
+                    end_date = four_pm_est if now_est >= four_pm_est else now - pd.Timedelta(minutes=5)
             except Exception:
-                pass
+                end_dt = None
+        else:
+            end_dt = None
 
         cache_file = _cache_path(symbol, start_date, end_date, period, interval)
 
-        # Do not cache if the requested end date is today and the current time
-        # is before 4pm US/Eastern.  After 4pm, caching is allowed.
+        # Cache control
         cache_enabled = True
         now_est = pd.Timestamp.now(tz="US/Eastern")
         four_pm = pd.Timestamp("16:00", tz="US/Eastern").time()
-        if end_date:
+
+        if end_dt:
             try:
-                end_dt = pd.to_datetime(end_date)
                 if end_dt.tzinfo is None:
                     end_dt = end_dt.tz_localize("UTC")
                 end_dt_est = end_dt.tz_convert("US/Eastern")
-                if (
-                    end_dt_est.normalize() == now_est.normalize()
-                    and now_est.time() < four_pm
-                ):
+
+                if end_dt_est.normalize() == now_est.normalize() and now_est.time() < four_pm:
                     cache_enabled = False
             except Exception:
                 pass

@@ -48,3 +48,4 @@ Pass `--output-trades` to print each trade in the terminal. Use `--tickers` or
 `--output-tickers` to display the per-ticker summary in an ASCII table after the trades.
 The summary table is ordered by `total_profit` descending and entries
 with profits less than the value passed to `--min-profit` are omitted.
+Pass `--plot daily` to generate a bar chart showing the total profit of all trades for each trading day in the analyzed range.

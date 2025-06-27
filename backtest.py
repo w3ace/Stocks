@@ -463,6 +463,11 @@ def main() -> None:
         action="store_true",
         help="Output per-ticker metrics table to console",
     )
+    parser.add_argument(
+        "--plot",
+        choices=["daily"],
+        help="Generate plots. 'daily' shows total profit for each day",
+    )
     args = parser.parse_args()
 
     tickers = expand_ticker_args(args.ticker)
@@ -589,8 +594,15 @@ def main() -> None:
     trades_path = output_dir / f"{timestamp}_trades.csv"
     tickers_path = output_dir / f"{timestamp}_tickers.csv"
 
+    daily_profit = None
     if all_trades:
         trades_df = pd.DataFrame(all_trades)
+        if args.plot == "daily":
+            plot_df = trades_df.copy()
+            if "date" in plot_df.columns:
+                plot_df["date"] = pd.to_datetime(plot_df["date"]).dt.date
+                if "profit" in plot_df.columns:
+                    daily_profit = plot_df.groupby("date")["profit"].sum()
         desired_cols = [
             "date",
             "time",
@@ -664,6 +676,14 @@ def main() -> None:
     print("Total Trades:", super_total_trades)
     print("Total Profit:", super_total_profit)
     print("Total Top Profit:", super_total_top_profit)
+
+    if args.plot == "daily" and daily_profit is not None and not daily_profit.empty:
+        ax = daily_profit.plot(kind="bar", title="Total Profit by Day")
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Total Profit (%)")
+        ax.tick_params(axis="x", rotation=45)
+        plt.tight_layout()
+        plt.show()
 
 if __name__ == "__main__":
     main()

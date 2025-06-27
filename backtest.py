@@ -604,7 +604,7 @@ def main() -> None:
             if "date" in plot_df.columns:
                 plot_df["date"] = pd.to_datetime(plot_df["date"]).dt.date
                 if "profit" in plot_df.columns:
-                    daily_profit = plot_df.groupby("date")["profit"].sum()
+                    daily_profit = plot_df.groupby("date")["profit"].mean()
                 daily_trades = plot_df.groupby("date").size()
                 if "result" in plot_df.columns:
                     daily_trade_types = (
@@ -699,11 +699,11 @@ def main() -> None:
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
         color_profit = "tab:blue"
-        ax1.plot(x, daily_profit.values, marker="o", color=color_profit)
-        ax1.set_ylabel("Total Profit (%)", color=color_profit)
+        ax1.plot(x, daily_profit.values, marker="o", color=color_profit, linewidth=3)
+        ax1.set_ylabel("Average Profit (%)", color=color_profit)
         ax1.tick_params(axis="y", labelcolor=color_profit)
         ax1.set_xlabel("Date")
-        ax1.set_title("Total Profit and Trades by Day")
+        ax1.set_title("Average Profit and Trades by Day")
         ax1.grid(True)
 
         ax2 = ax1.twinx()

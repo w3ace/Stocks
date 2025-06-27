@@ -1,4 +1,5 @@
 import argparse
+import time
 try:
     from tabulate import tabulate
 except Exception:
@@ -54,33 +55,45 @@ def main() -> None:
         default="LO",
         help="LO: last close > open, OL: open > last close, ALL: no filter",
     )
+    parser.add_argument(
+        "--continuous",
+        action="store_true",
+        help="Rerun every 5 seconds until interrupted",
+    )
     args = parser.parse_args()
 
     tickers = expand_ticker_args(args.ticker)
-    rows: list[dict[str, float | str]] = []
-    for t in tickers:
-        result = fetch_last_open_close(t)
-        if result is None:
-            continue
-        open_price, close_price = result
-        if args.filter == "LO" and not close_price > open_price:
-            continue
-        if args.filter == "OL" and not open_price > close_price:
-            continue
-        pct_diff = (close_price - open_price) / open_price * 100 if open_price else 0
-        rows.append({
-            "ticker": t,
-            "open": round(open_price, 2),
-            "close": round(close_price, 2),
-            "% diff": round(pct_diff, 2),
-        })
+    while True:
+        rows: list[dict[str, float | str]] = []
+        for t in tickers:
+            result = fetch_last_open_close(t)
+            if result is None:
+                continue
+            open_price, close_price = result
+            if args.filter == "LO" and not close_price > open_price:
+                continue
+            if args.filter == "OL" and not open_price > close_price:
+                continue
+            pct_diff = (close_price - open_price) / open_price * 100 if open_price else 0
+            rows.append({
+                "ticker": t,
+                "open": round(open_price, 2),
+                "close": round(close_price, 2),
+                "% diff": round(pct_diff, 2),
+            })
 
-    if rows:
-        df = pd.DataFrame(rows)
-        if tabulate:
-            print(tabulate(df, headers="keys", tablefmt="grid", showindex=False))
-        else:
-            print(df.to_string(index=False))
+        if rows:
+            df = pd.DataFrame(rows)
+            df.sort_values("% diff", ascending=False, inplace=True)
+            if tabulate:
+                print(tabulate(df, headers="keys", tablefmt="grid", showindex=False))
+            else:
+                print(df.to_string(index=False))
+
+        if not args.continuous:
+            break
+        time.sleep(5)
+        print()
 
 
 if __name__ == "__main__":

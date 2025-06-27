@@ -50,4 +50,6 @@ The summary table is ordered by `total_profit` descending and entries
 with profits less than the value passed to `--min-profit` are omitted.
 Pass `--plot daily` to generate a single plot summarizing daily activity. The
 profit line appears on the left y-axis and a stacked bar chart on the right
-shows the number of profit, close, and loss trades for each day.
+shows the number of profit, close, and loss trades for each day. The plot also
+includes a third axis for total profit and a second line depicting the average
+top profit.

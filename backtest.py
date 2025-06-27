@@ -595,6 +595,8 @@ def main() -> None:
     tickers_path = output_dir / f"{timestamp}_tickers.csv"
 
     daily_profit = None
+    daily_top_profit = None
+    daily_total_profit = None
     daily_trades = None
     daily_trade_types = None
     if all_trades:
@@ -605,6 +607,9 @@ def main() -> None:
                 plot_df["date"] = pd.to_datetime(plot_df["date"]).dt.date
                 if "profit" in plot_df.columns:
                     daily_profit = plot_df.groupby("date")["profit"].mean()
+                    daily_total_profit = plot_df.groupby("date")["profit"].sum()
+                if "top_profit" in plot_df.columns:
+                    daily_top_profit = plot_df.groupby("date")["top_profit"].mean()
                 daily_trades = plot_df.groupby("date").size()
                 if "result" in plot_df.columns:
                     daily_trade_types = (
@@ -699,11 +704,33 @@ def main() -> None:
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
         color_profit = "tab:blue"
-        ax1.plot(x, daily_profit.values, marker="o", color=color_profit, linewidth=3)
+        line_profit = ax1.plot(
+            x,
+            daily_profit.values,
+            marker="o",
+            color=color_profit,
+            linewidth=3,
+            label="Avg Profit",
+        )[0]
+
+        if daily_top_profit is not None:
+            color_top = "tab:purple"
+            line_top = ax1.plot(
+                x,
+                daily_top_profit.reindex(daily_profit.index).values,
+                marker="o",
+                linestyle="--",
+                color=color_top,
+                linewidth=2,
+                label="Avg Top Profit",
+            )[0]
+        else:
+            line_top = None
+
         ax1.set_ylabel("Average Profit (%)", color=color_profit)
         ax1.tick_params(axis="y", labelcolor=color_profit)
         ax1.set_xlabel("Date")
-        ax1.set_title("Average Profit and Trades by Day")
+        ax1.set_title("Daily Profit and Trades")
         ax1.grid(True)
 
         ax2 = ax1.twinx()
@@ -722,7 +749,32 @@ def main() -> None:
         )
         ax2.set_ylabel("Trades")
         ax2.tick_params(axis="y")
-        ax2.legend()
+        ax2.legend(loc="upper right")
+
+        if daily_total_profit is not None:
+            ax3 = ax1.twinx()
+            ax3.spines["right"].set_position(("axes", 1.1))
+            color_total = "tab:orange"
+            line_total = ax3.plot(
+                x,
+                daily_total_profit.reindex(daily_profit.index).values,
+                marker="s",
+                color=color_total,
+                linewidth=2,
+                label="Total Profit",
+            )[0]
+            ax3.set_ylabel("Total Profit (%)", color=color_total)
+            ax3.tick_params(axis="y", labelcolor=color_total)
+        else:
+            line_total = None
+
+        lines = [line_profit]
+        if line_top is not None:
+            lines.append(line_top)
+        if line_total is not None:
+            lines.append(line_total)
+        labels = [l.get_label() for l in lines]
+        ax1.legend(lines, labels, loc="upper left")
 
         ax1.set_xticks(list(x))
         ax1.set_xticklabels(

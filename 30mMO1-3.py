@@ -50,7 +50,7 @@ def main() -> None:
             "--range", "30",
             "--filter", "MO",
             "--min-profit", "-1",
-            "+T1", "+T2", "+T3", "+T4", "+T5",
+            "+30mMO-L"
         ])
 
         df = pd.read_csv(csv_path).sort_values(by="total_profit", ascending=False)

@@ -130,6 +130,9 @@ def main() -> None:
     daily_stats: list[dict[str, float | int | datetime]] = []
 
     while current <= end_date:
+        if current.weekday() >= 5:  # Skip Saturday and Sunday
+            current += timedelta(days=1)
+            continue
         lookback_start = current - timedelta(days=14)
         lookback_end = current - timedelta(days=1)
 

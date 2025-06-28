@@ -663,17 +663,43 @@ def main() -> None:
                 print(trades_df.to_string(index=False))
         print(f"Trades saved to {trades_path}")
 
+    ticker_count = len(ticker_rows)
+    avg_total_profit = super_total_profit / ticker_count if ticker_count else 0
+    avg_total_top_profit = (
+        super_total_top_profit / ticker_count if ticker_count else 0
+    )
+
     if ticker_rows:
         tickers_df = pd.DataFrame(ticker_rows)
 
-        # Order by total profit descending and apply --min-profit filter
+        surpass_df = (
+            tickers_df[tickers_df["total_profit"] > args.min_profit]
+            if args.min_profit is not None
+            else tickers_df
+        )
+
+        surpass_by_profit = surpass_df.sort_values(by="total_profit", ascending=False)[
+            "ticker"
+        ].tolist()
+        surpass_by_top_profit = surpass_df.sort_values(by="total_top_profit", ascending=False)[
+            "ticker"
+        ].tolist()
+        surpass_by_success = surpass_df.sort_values(by="trade_success_pct", ascending=False)[
+            "ticker"
+        ].tolist()
+
+        for col in [
+            "trade_success_pct",
+            "total_profit",
+            "total_top_profit",
+            "avg_trade_time",
+        ]:
+            if col in tickers_df.columns:
+                tickers_df[col] = tickers_df[col].map(lambda x: f"{x:.2f}")
+
         tickers_df = tickers_df.sort_values(by="total_profit", ascending=False)
         if args.min_profit is not None:
             tickers_df = tickers_df[tickers_df["total_profit"] > args.min_profit]
-
-        for col in ["trade_success_pct", "total_profit", "total_top_profit", "avg_trade_time"]:
-            if col in tickers_df.columns:
-                tickers_df[col] = tickers_df[col].map(lambda x: f"{x:.2f}")
 
         tickers_df.to_csv(tickers_path, index=False)
         if args.tickers or args.output_tickers:
@@ -683,12 +709,33 @@ def main() -> None:
                 print(tickers_df.to_string(index=False))
         print(f"Ticker summary saved to {tickers_path}")
 
-    if surpass_tickers:
-        print("Tickers surpassing min profit:", " ".join(surpass_tickers))
+        if surpass_by_profit:
+            print(
+                "Tickers surpassing min profit by total profit:",
+                " ".join(surpass_by_profit),
+            )
+        if surpass_by_top_profit:
+            print(
+                "Tickers surpassing min profit by total top profit:",
+                " ".join(surpass_by_top_profit),
+            )
+        if surpass_by_success:
+            print(
+                "Tickers surpassing min profit by success percentage:",
+                " ".join(surpass_by_success),
+            )
 
     print("Total Trades:", super_total_trades)
-    print("Total Profit:", super_total_profit)
-    print("Total Top Profit:", super_total_top_profit)
+    print("Total Profit:", f"{super_total_profit:.2f}")
+    print(
+        "Avg Total Profit:",
+        f"{avg_total_profit:.2f} ({avg_total_profit / 100 * 10000:,.2f} on $10,000)",
+    )
+    print("Total Top Profit:", f"{super_total_top_profit:.2f}")
+    print(
+        "Avg Total Top Profit:",
+        f"{avg_total_top_profit:.2f} ({avg_total_top_profit / 100 * 10000:,.2f} on $10,000)",
+    )
 
     if (
         args.plot == "daily"

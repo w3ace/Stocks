@@ -34,7 +34,7 @@ def expand_ticker_args(ticker_args: Iterable[str]) -> list[str]:
 
 def fetch_last_open_close(ticker: str) -> tuple[float, float] | None:
     """Return the last day's open and close for ``ticker``."""
-    data = fetch_stock(ticker, period="7d", interval="1d")
+    data = fetch_stock(ticker, period="7d", interval="5m")
     if data is None or data.empty:
         return None
     row = data.iloc[-1]

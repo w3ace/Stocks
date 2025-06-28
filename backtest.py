@@ -466,7 +466,7 @@ def main() -> None:
     parser.add_argument(
         "--plot",
         choices=["daily"],
-        help="Generate plots. 'daily' shows total profit for each day",
+        help="Generate plots. 'daily' shows average profit and trade counts per day",
     )
     args = parser.parse_args()
 
@@ -596,7 +596,6 @@ def main() -> None:
 
     daily_profit = None
     daily_top_profit = None
-    daily_total_profit = None
     daily_trades = None
     daily_trade_types = None
     if all_trades:
@@ -607,7 +606,6 @@ def main() -> None:
                 plot_df["date"] = pd.to_datetime(plot_df["date"]).dt.date
                 if "profit" in plot_df.columns:
                     daily_profit = plot_df.groupby("date")["profit"].mean()
-                    daily_total_profit = plot_df.groupby("date")["profit"].sum()
                 if "top_profit" in plot_df.columns:
                     daily_top_profit = plot_df.groupby("date")["top_profit"].mean()
                 daily_trades = plot_df.groupby("date").size()
@@ -751,28 +749,9 @@ def main() -> None:
         ax2.tick_params(axis="y")
         ax2.legend(loc="upper right")
 
-        if daily_total_profit is not None:
-            ax3 = ax1.twinx()
-            ax3.spines["right"].set_position(("axes", 1.1))
-            color_total = "tab:orange"
-            line_total = ax3.plot(
-                x,
-                daily_total_profit.reindex(daily_profit.index).values,
-                marker="s",
-                color=color_total,
-                linewidth=2,
-                label="Total Profit",
-            )[0]
-            ax3.set_ylabel("Total Profit (%)", color=color_total)
-            ax3.tick_params(axis="y", labelcolor=color_total)
-        else:
-            line_total = None
-
         lines = [line_profit]
         if line_top is not None:
             lines.append(line_top)
-        if line_total is not None:
-            lines.append(line_total)
         labels = [l.get_label() for l in lines]
         ax1.legend(lines, labels, loc="upper left")
 

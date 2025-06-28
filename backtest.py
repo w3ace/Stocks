@@ -154,12 +154,16 @@ def analyze_open_range(
         pd.Timestamp(open_end) + timedelta(minutes=5)
     ).strftime("%H:%M")
 
+    prev_close = None
+
 
     for date, day_df in grouped:
+        prev_close_for_day = prev_close
         morning = day_df.between_time("09:30", open_end)
         near_closing = day_df.between_time(open_end, after_settlement)
         rest_of_day = day_df.between_time(after_settlement, "16:00")
         if morning.empty:
+            prev_close = day_df.iloc[-1]["Close"]
             continue
         or_high = morning["High"].max()
         or_low = morning["Low"].min()
@@ -171,6 +175,7 @@ def analyze_open_range(
             # Skip the day if there is no data immediately after the opening
             # range. Attempting to access ``near_closing.iloc[0]`` would raise
             # ``IndexError`` otherwise.
+            prev_close = close_price
             continue
         after_or_price = near_closing.iloc[0]["Open"]
         after_or_time = near_closing.index[0]
@@ -193,6 +198,16 @@ def analyze_open_range(
             should_buy = after_or_price > open_price * filter_offset
         elif filter.upper() == "OM":
             should_buy = open_price > after_or_price * filter_offset
+        elif filter.upper() == "GU":
+            should_buy = (
+                prev_close_for_day is not None
+                and open_price > prev_close_for_day * filter_offset
+            )
+        elif filter.upper() == "GD":
+            should_buy = (
+                prev_close_for_day is not None
+                and open_price < prev_close_for_day * filter_offset
+            )
 
         if should_buy:
             buy = after_or_price
@@ -219,6 +234,9 @@ def analyze_open_range(
                     "date": pd.to_datetime(date),
                     "time": after_or_time,
                     "open": float(open_price),
+                    "prev_close": float(prev_close_for_day)
+                    if prev_close_for_day is not None
+                    else None,
                     "close": float(close_price),
                     "or_low": float(or_low),
                     "or_high": float(or_high),
@@ -246,6 +264,7 @@ def analyze_open_range(
         after_open = day_df[day_df.index > morning.index[-1]]
         if after_open.empty:
             totals.total_days += 1
+            prev_close = close_price
             continue
 
         high_cross_time = None
@@ -273,6 +292,8 @@ def analyze_open_range(
                 if (after_low["High"] >= or_high).any():
                     totals.broke_low_then_high += 1
             totals.high_before_low_map[pd.to_datetime(date)] = False
+
+        prev_close = close_price
 
     return totals
 
@@ -432,9 +453,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--filter",
-        choices=["MO", "OM"],
+        choices=["MO", "OM", "GU", "GD"],
         default="MO",
-        help="Trade filter: MO for Mark > Open or OM for Open > Mark",
+        help=(
+            "Trade filter: "
+            "MO for Mark > Open, OM for Open > Mark, "
+            "GU for gap up, GD for gap down"
+        ),
     )
     parser.add_argument(
         "--filter-offset",
@@ -621,6 +646,7 @@ def main() -> None:
             "time",
             "ticker",
             "open",
+            "prev_close",
             "close",
             "buy_price",
             "stop_price",
@@ -640,7 +666,7 @@ def main() -> None:
         if "time" in trades_df.columns:
             trades_df = trades_df.drop(columns=["time"])
 
-        for col in ["open", "close", "buy_price", "stop_price", "profit_price"]:
+        for col in ["open", "prev_close", "close", "buy_price", "stop_price", "profit_price"]:
             if col in trades_df.columns:
                 trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
 

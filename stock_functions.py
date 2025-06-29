@@ -61,7 +61,7 @@ def choose_yfinance_interval(start=None, end=None, period=None):
     intervals = [
         ("1m", timedelta(days=7)),
         ("2m", timedelta(days=14)),
-        ("5m", timedelta(days=14)),
+        ("5m", timedelta(days=60)),
         ("15m", timedelta(days=60)),
         ("30m", timedelta(days=60)),
         ("60m", timedelta(days=730)),  # 2 years

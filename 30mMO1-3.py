@@ -197,7 +197,7 @@ def main() -> None:
             "--range", "30",
             "--filter", "MO",
             "--min-profit", "-1",
-            "+30mMO-XL"
+            "+30mMO"
         ])
 
         df = pd.read_csv(csv_path).sort_values(by="total_profit", ascending=False)
@@ -228,8 +228,8 @@ def main() -> None:
         total_top_profit += result_df["total_top_profit"].sum()
         day_count += 1
 
-        avg_profit_day = (result_df["total_profit"].sum() / result_df["total_trades"].sum()) if "profit" in trades_df.columns else 0.0
-        avg_top_profit_day = (result_df["total_top_profit"].sum() / result_df["total_trades"].sum()) if "top_profit" in trades_df.columns else 0.0
+        avg_profit_day = (result_df["total_profit"].sum() / result_df["total_trades"].sum()) if result_df["total_trades"].sum() else 0.0
+        avg_top_profit_day = (result_df["total_top_profit"].sum() / result_df["total_trades"].sum()) if result_df["total_trades"].sum()else 0.0
         
         counts = trades_df["profit_or_loss"].value_counts() if "profit_or_loss" in trades_df.columns else pd.Series(dtype=int)
         daily_stats.append(

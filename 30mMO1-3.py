@@ -191,9 +191,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--filter",
-        choices=["MO", "OM"],
         default="MO",
-        help="Trade filter (default MO)",
+        help=(
+            "Space-separated trade filters. Prefix with ! to invert. "
+            "Available filters: MO, OM, ORM"
+        ),
     )
     parser.add_argument(
         "--min-profit",

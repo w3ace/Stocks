@@ -147,7 +147,12 @@ def analyze_open_range(
     filter: str = "MO",
     filter_offset: float = 1.0,
 ) -> OpenRangeBreakTotals:
-    """Analyze opening range breaks for each trading day."""
+    """Analyze opening range breaks for each trading day.
+
+    ``filter`` may contain multiple space-separated filters which must all
+    evaluate to true for a trade to be taken. Prefix a filter with ``!`` to
+    invert its logic.
+    """
     if df.empty:
         return OpenRangeBreakTotals()
 
@@ -183,11 +188,22 @@ def analyze_open_range(
         if close_price > open_price:
             totals.closed_higher_than_open += 1
 
-        should_buy = False
-        if filter.upper() == "MO":
-            should_buy = after_or_price > open_price * filter_offset
-        elif filter.upper() == "OM":
-            should_buy = open_price > after_or_price * filter_offset
+        should_buy = True
+        for token in str(filter).split():
+            negated = token.startswith("!")
+            name = token[1:] if negated else token
+            check = False
+            if name.upper() == "MO":
+                check = after_or_price > open_price * filter_offset
+            elif name.upper() == "OM":
+                check = open_price > after_or_price * filter_offset
+            elif name.upper() == "ORM":
+                check = after_or_price * 1.002 > or_high
+            else:
+                continue
+            if negated:
+                check = not check
+            should_buy = should_buy and check
 
         if should_buy:
             buy = after_or_price
@@ -271,7 +287,11 @@ def analyze_open_range(
 
 
 class OpenRangeAnalyzer:
-    """Helper class for running opening range analysis on a ticker."""
+    """Helper class for running opening range analysis on a ticker.
+
+    Parameters mirror :func:`analyze_open_range`. ``filter`` may contain multiple
+    space-separated filters with optional ``!`` prefix to invert.
+    """
 
     def __init__(
         self,

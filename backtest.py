@@ -74,9 +74,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--filter",
-        choices=["MO", "OM"],
         default="MO",
-        help="Trade filter: MO for Mark > Open or OM for Open > Mark",
+        help=(
+            "Space-separated trade filters. Prefix with ! to invert. "
+            "Available filters: MO (Mark > Open), OM (Open > Mark), ORM (Buy "
+            "Price * 1.002 > Open Range High)"
+        ),
     )
     parser.add_argument(
         "--filter-offset",

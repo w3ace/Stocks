@@ -40,6 +40,9 @@ is taken after the opening range.
 Use `--filter` to control the relationship between the opening range
 close (Mark) and the day's open that must be satisfied before entering a
 trade. `--filter-offset` multiplies the open price used in that check.
+Available filters include `MO` (Mark > Open), `OM` (Open > Mark), `ORM`
+(Buy Price * 1.002 > Open Range High), `GU` (Open above previous close)
+and `GD` (Open below previous close).
 
 When the analysis completes, all trades are written to `./output/<timestamp>_trades.csv` and a per-ticker summary is saved to `./output/<timestamp>_tickers.csv`. The summary lists the total number of trades, the percentage of profitable trades, and the cumulative profit for each ticker. It also includes `total_top_profit`, the sum of potential profits based on each trade's peak price.
 The trades file includes a `profit_or_loss` column after `sell_time` showing whether each trade hit the profit target, stop loss, or closed at the end of the day.

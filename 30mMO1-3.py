@@ -252,10 +252,10 @@ def main() -> None:
         df = pd.read_csv(csv_path)
 
         tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(8).tolist()
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(6).tolist()
         )
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(4).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(3).tolist()
         )
 
         success_col = (
@@ -265,7 +265,7 @@ def main() -> None:
             else None
         )
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(4).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(3).tolist()
             if success_col
             else []
         )

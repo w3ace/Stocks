@@ -201,7 +201,7 @@ def analyze_open_range(
             elif name.upper() == "OM":
                 check = open_price > after_or_price * filter_offset
             elif name.upper() == "ORM":
-                check = after_or_price * 1.002 > or_high
+                check = after_or_price  > or_high * 0.9965
             else:
                 continue
             if negated:

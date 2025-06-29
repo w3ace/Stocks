@@ -243,8 +243,32 @@ def main() -> None:
             *args.ticker_list,
         ])
 
-        df = pd.read_csv(csv_path).sort_values(by="total_profit", ascending=False)
-        tickers = df["ticker"].head(8).tolist()
+        df = pd.read_csv(csv_path)
+
+        tickers_profit = (
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(8).tolist()
+        )
+        tickers_top_profit = (
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(4).tolist()
+        )
+
+        success_col = (
+            "trade_success_rate"
+            if "trade_success_rate" in df.columns
+            else "trade_success_pct" if "trade_success_pct" in df.columns
+            else None
+        )
+        tickers_success = (
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(4).tolist()
+            if success_col
+            else []
+        )
+
+        tickers: list[str] = []
+        for t in tickers_profit + tickers_top_profit + tickers_success:
+            if t not in tickers:
+                tickers.append(t)
+
         if not tickers:
             current += timedelta(days=1)
             continue

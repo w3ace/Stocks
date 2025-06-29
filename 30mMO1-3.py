@@ -168,7 +168,7 @@ def main() -> None:
     parser.add_argument(
         "--range",
         type=int,
-        default=20,
+        default=30,
         help="Opening range in minutes (default 20)",
     )
     parser.add_argument(
@@ -264,7 +264,7 @@ def main() -> None:
             "--range",
             str(args.range),
             "--filter",
-            args.filter,
+            str(args.filter),
             "--min-profit",
             str(args.min_profit),
             *tickers,

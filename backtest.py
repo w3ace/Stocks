@@ -88,6 +88,11 @@ def main() -> None:
         help="Offset multiplier for filter comparison (default 1.0)",
     )
     parser.add_argument(
+        "--max-trades",
+        type=int,
+        help="Stop analyzing after this many trades per ticker",
+    )
+    parser.add_argument(
         "--min-profit",
         type=float,
         default=1.9,
@@ -157,6 +162,7 @@ def main() -> None:
             profit_pct=args.profit_pct,
             filter=args.filter,
             filter_offset=args.filter_offset,
+            max_trades=args.max_trades,
         )
         results, or_pct = analyzer.analyze_ticker(ticker, start, end)
 

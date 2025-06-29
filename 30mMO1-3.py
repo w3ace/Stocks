@@ -1,12 +1,59 @@
 import argparse
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
-# Used to identify trading days so we can skip NYSE holidays
-import pandas_market_calendars as mcal
+
+# Basic NYSE holiday calendar implemented with pandas.tseries.holiday so we
+# can skip market holidays without the external pandas_market_calendars
+# dependency.
+from pandas.tseries.holiday import (
+    AbstractHolidayCalendar,
+    Holiday,
+    nearest_workday,
+    USMartinLutherKingJr,
+    USPresidentsDay,
+    GoodFriday,
+    USMemorialDay,
+    USLaborDay,
+    USThanksgivingDay,
+)
+
+
+class NYSEHolidayCalendar(AbstractHolidayCalendar):
+    """Simplified NYSE holiday calendar."""
+
+    rules = [
+        Holiday("New Years Day", month=1, day=1, observance=nearest_workday),
+        USMartinLutherKingJr,
+        USPresidentsDay,
+        GoodFriday,
+        USMemorialDay,
+        Holiday(
+            "Juneteenth National Independence Day",
+            month=6,
+            day=19,
+            observance=nearest_workday,
+        ),
+        Holiday("Independence Day", month=7, day=4, observance=nearest_workday),
+        USLaborDay,
+        USThanksgivingDay,
+        Holiday("Christmas Day", month=12, day=25, observance=nearest_workday),
+    ]
+
+
+nyse_calendar = NYSEHolidayCalendar()
+
+
+def is_trading_day(day: date) -> bool:
+    """Return True if *day* is a NYSE trading day."""
+
+    if day.weekday() >= 5:  # Saturday/Sunday
+        return False
+    holidays = nyse_calendar.holidays(start=day, end=day)
+    return pd.Timestamp(day) not in holidays
 
 
 def plot_daily_results(df: pd.DataFrame) -> None:
@@ -125,8 +172,6 @@ def main() -> None:
     start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
     end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
 
-    nyse = mcal.get_calendar("NYSE")
-
     current = start_date
     total_trades = 0
     total_profit = 0.0
@@ -136,7 +181,7 @@ def main() -> None:
     daily_stats: list[dict[str, float | int | datetime]] = []
 
     while current <= end_date:
-        if current.weekday() >= 5 or not nyse.valid_days(start_date=current, end_date=current).size:
+        if not is_trading_day(current):
             # Skip weekends and NYSE holidays
             current += timedelta(days=1)
             continue

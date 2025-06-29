@@ -165,6 +165,42 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Predictive backtest runner")
     parser.add_argument("--start", required=True, help="Start date YYYY-MM-DD")
     parser.add_argument("--end", required=True, help="End date YYYY-MM-DD")
+    parser.add_argument(
+        "--range",
+        type=int,
+        default=20,
+        help="Opening range in minutes (default 20)",
+    )
+    parser.add_argument(
+        "--ticker-list",
+        nargs="+",
+        default=["+20mMO-MJ"],
+        help="Tickers or portfolio names used for lookback selection",
+    )
+    parser.add_argument(
+        "--loss-pct",
+        type=float,
+        default=0.35,
+        help="Stop loss percentage (default 0.35)",
+    )
+    parser.add_argument(
+        "--profit-pct",
+        type=float,
+        default=1.05,
+        help="Profit target percentage (default 1.05)",
+    )
+    parser.add_argument(
+        "--filter",
+        choices=["MO", "OM"],
+        default="MO",
+        help="Trade filter (default MO)",
+    )
+    parser.add_argument(
+        "--min-profit",
+        type=float,
+        default=-1.0,
+        help="Minimum total profit to include ticker (default -1)",
+    )
     args = parser.parse_args()
 
     start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
@@ -188,14 +224,21 @@ def main() -> None:
 
         # Run backtest on the lookback period to select tickers
         csv_path, _ = run_backtest([
-            "--end", lookback_end.strftime("%Y-%m-%d"),
-            "--start", lookback_start.strftime("%Y-%m-%d"),
-            "--loss-pct", "0.35",
-            "--profit-pct", "1.05",
-            "--range", "20",
-            "--filter", "MO",
-            "--min-profit", "-1",
-            "+20mMO-MJ"
+            "--end",
+            lookback_end.strftime("%Y-%m-%d"),
+            "--start",
+            lookback_start.strftime("%Y-%m-%d"),
+            "--loss-pct",
+            str(args.loss_pct),
+            "--profit-pct",
+            str(args.profit_pct),
+            "--range",
+            str(args.range),
+            "--filter",
+            args.filter,
+            "--min-profit",
+            str(args.min_profit),
+            *args.ticker_list,
         ])
 
         df = pd.read_csv(csv_path).sort_values(by="total_profit", ascending=False)
@@ -208,13 +251,20 @@ def main() -> None:
 
         # Run backtest for the current day using selected tickers
         result_csv, trades_csv = run_backtest([
-            "--end", current.strftime("%Y-%m-%d"),
-            "--start", current.strftime("%Y-%m-%d"),
-            "--loss-pct", "0.35",
-            "--profit-pct", "1.05",
-            "--range", "20",
-            "--filter", "MO",
-            "--min-profit", "-1",
+            "--end",
+            current.strftime("%Y-%m-%d"),
+            "--start",
+            current.strftime("%Y-%m-%d"),
+            "--loss-pct",
+            str(args.loss_pct),
+            "--profit-pct",
+            str(args.profit_pct),
+            "--range",
+            str(args.range),
+            "--filter",
+            args.filter,
+            "--min-profit",
+            str(args.min_profit),
             *tickers,
         ])
 

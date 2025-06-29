@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
+# Used to identify trading days so we can skip NYSE holidays
+import pandas_market_calendars as mcal
 
 
 def plot_daily_results(df: pd.DataFrame) -> None:
@@ -121,6 +123,8 @@ def main() -> None:
     start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
     end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
 
+    nyse = mcal.get_calendar("NYSE")
+
     current = start_date
     total_trades = 0
     total_profit = 0.0
@@ -130,7 +134,8 @@ def main() -> None:
     daily_stats: list[dict[str, float | int | datetime]] = []
 
     while current <= end_date:
-        if current.weekday() >= 5:  # Skip Saturday and Sunday
+        if current.weekday() >= 5 or not nyse.valid_days(start_date=current, end_date=current).size:
+            # Skip weekends and NYSE holidays
             current += timedelta(days=1)
             continue
         lookback_start = current - timedelta(days=21)

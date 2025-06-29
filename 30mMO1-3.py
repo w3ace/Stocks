@@ -198,6 +198,11 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--max-trades",
+        type=int,
+        help="Stop analyzing after this many trades per ticker",
+    )
+    parser.add_argument(
         "--min-profit",
         type=float,
         default=-1.0,
@@ -238,6 +243,7 @@ def main() -> None:
             str(args.range),
             "--filter",
             args.filter,
+            *( ["--max-trades", str(args.max_trades)] if args.max_trades is not None else [] ),
             "--min-profit",
             str(args.min_profit),
             *args.ticker_list,
@@ -289,6 +295,7 @@ def main() -> None:
             str(args.range),
             "--filter",
             str(args.filter),
+            *( ["--max-trades", str(args.max_trades)] if args.max_trades is not None else [] ),
             "--min-profit",
             str(args.min_profit),
             *tickers,

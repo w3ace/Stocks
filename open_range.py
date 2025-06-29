@@ -146,6 +146,7 @@ def analyze_open_range(
     profit_pct: float = 1.0,
     filter: str = "MO",
     filter_offset: float = 1.0,
+    max_trades: int | None = None,
 ) -> OpenRangeBreakTotals:
     """Analyze opening range breaks for each trading day.
 
@@ -169,6 +170,8 @@ def analyze_open_range(
     ).strftime("%H:%M")
 
     for date, day_df in grouped:
+        if max_trades is not None and totals.total_trades >= max_trades:
+            break
         morning = day_df.between_time("09:30", open_end)
         near_closing = day_df.between_time(open_end, after_settlement)
         rest_of_day = day_df.between_time(after_settlement, "16:00")
@@ -283,6 +286,9 @@ def analyze_open_range(
                     totals.broke_low_then_high += 1
             totals.high_before_low_map[pd.to_datetime(date)] = False
 
+        if max_trades is not None and totals.total_trades >= max_trades:
+            break
+
     return totals
 
 
@@ -302,6 +308,7 @@ class OpenRangeAnalyzer:
         profit_pct: float = 1.0,
         filter: str = "MO",
         filter_offset: float = 1.0,
+        max_trades: int | None = None,
     ) -> None:
         self.interval = interval
         self.open_range_minutes = open_range_minutes
@@ -309,6 +316,7 @@ class OpenRangeAnalyzer:
         self.profit_pct = profit_pct
         self.filter = filter
         self.filter_offset = filter_offset
+        self.max_trades = max_trades
 
     def fetch(self, ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
         return fetch_intraday(ticker, start, end, interval=self.interval)
@@ -321,6 +329,7 @@ class OpenRangeAnalyzer:
             profit_pct=self.profit_pct,
             filter=self.filter,
             filter_offset=self.filter_offset,
+            max_trades=self.max_trades,
         )
 
     def analyze_ticker(

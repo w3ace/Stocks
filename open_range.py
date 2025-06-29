@@ -169,6 +169,8 @@ def analyze_open_range(
         pd.Timestamp(open_end) + timedelta(minutes=5)
     ).strftime("%H:%M")
 
+    prev_close = None
+
     for date, day_df in grouped:
         if max_trades is not None and totals.total_trades >= max_trades:
             break
@@ -184,6 +186,7 @@ def analyze_open_range(
         open_price = morning.iloc[0]["Open"]
         close_price = day_df.iloc[-1]["Close"]
         if near_closing.empty:
+            prev_close = close_price
             continue
         after_or_price = near_closing.iloc[0]["Open"]
         after_or_time = near_closing.index[0]
@@ -192,6 +195,10 @@ def analyze_open_range(
             totals.closed_higher_than_open += 1
 
         should_buy = True
+        gap_up = gap_down = False
+        if prev_close is not None:
+            gap_up = open_price > prev_close * filter_offset
+            gap_down = open_price < prev_close * filter_offset
         for token in str(filter).split():
             negated = token.startswith("!")
             name = token[1:] if negated else token
@@ -202,6 +209,10 @@ def analyze_open_range(
                 check = open_price > after_or_price * filter_offset
             elif name.upper() == "ORM":
                 check = after_or_price  > or_high * 0.9965
+            elif name.upper() == "GU":
+                check = gap_up
+            elif name.upper() == "GD":
+                check = gap_down
             else:
                 continue
             if negated:
@@ -288,6 +299,7 @@ def analyze_open_range(
 
         if max_trades is not None and totals.total_trades >= max_trades:
             break
+        prev_close = close_price
 
     return totals
 

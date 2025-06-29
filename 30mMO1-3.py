@@ -93,8 +93,6 @@ def plot_daily_results(df: pd.DataFrame) -> None:
     ax1.set_title("Daily Profit and Trades")
     ax1.grid(True)
 
-    print(df["profit_count"].values)
-
     ax2 = ax1.twinx()
     bar1 = ax2.bar(
         x,
@@ -194,14 +192,14 @@ def main() -> None:
             "--start", lookback_start.strftime("%Y-%m-%d"),
             "--loss-pct", "0.35",
             "--profit-pct", "1.05",
-            "--range", "30",
+            "--range", "20",
             "--filter", "MO",
             "--min-profit", "-1",
-            "+30mMO"
+            "+20mMO-MJ"
         ])
 
         df = pd.read_csv(csv_path).sort_values(by="total_profit", ascending=False)
-        tickers = df["ticker"].head(10).tolist()
+        tickers = df["ticker"].head(8).tolist()
         if not tickers:
             current += timedelta(days=1)
             continue
@@ -214,7 +212,7 @@ def main() -> None:
             "--start", current.strftime("%Y-%m-%d"),
             "--loss-pct", "0.35",
             "--profit-pct", "1.05",
-            "--range", "30",
+            "--range", "20",
             "--filter", "MO",
             "--min-profit", "-1",
             *tickers,
@@ -232,16 +230,17 @@ def main() -> None:
         avg_top_profit_day = (result_df["total_top_profit"].sum() / result_df["total_trades"].sum()) if result_df["total_trades"].sum()else 0.0
         
         counts = trades_df["profit_or_loss"].value_counts() if "profit_or_loss" in trades_df.columns else pd.Series(dtype=int)
-        daily_stats.append(
-            {
-                "date": current,
-                "avg_profit": avg_profit_day,
-                "avg_top_profit": avg_top_profit_day,
-                "profit_count": int(counts.get("profit", 0)),
-                "close_count": int(counts.get("close", 0)),
-                "loss_count": int(counts.get("loss", 0)),
-            }
-        )
+        if(result_df["total_trades"].sum()):
+            daily_stats.append(
+                {
+                    "date": current,
+                    "avg_profit": avg_profit_day,
+                    "avg_top_profit": avg_top_profit_day,
+                    "profit_count": int(counts.get("profit", 0)),
+                    "close_count": int(counts.get("close", 0)),
+                    "loss_count": int(counts.get("loss", 0)),
+                }
+            )
 
         current += timedelta(days=1)
 

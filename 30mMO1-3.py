@@ -133,7 +133,7 @@ def main() -> None:
         if current.weekday() >= 5:  # Skip Saturday and Sunday
             current += timedelta(days=1)
             continue
-        lookback_start = current - timedelta(days=14)
+        lookback_start = current - timedelta(days=21)
         lookback_end = current - timedelta(days=1)
 
         # Run backtest on the lookback period to select tickers
@@ -149,7 +149,7 @@ def main() -> None:
         ])
 
         df = pd.read_csv(csv_path).sort_values(by="total_profit", ascending=False)
-        tickers = df["ticker"].head(20).tolist()
+        tickers = df["ticker"].head(10).tolist()
         if not tickers:
             current += timedelta(days=1)
             continue
@@ -176,10 +176,9 @@ def main() -> None:
         total_top_profit += result_df["total_top_profit"].sum()
         day_count += 1
 
-        avg_profit_day = trades_df["profit"].mean() if "profit" in trades_df.columns else 0.0
-        avg_top_profit_day = (
-            trades_df["top_profit"].mean() if "top_profit" in trades_df.columns else 0.0
-        )
+        avg_profit_day = (total_profit / total_trades) if "profit" in trades_df.columns else 0.0
+        avg_top_profit_day = (total_top_profit / total_trades) if "top_profit" in trades_df.columns else 0.0
+        
         counts = trades_df["result"].value_counts() if "result" in trades_df.columns else pd.Series(dtype=int)
         daily_stats.append(
             {
@@ -194,8 +193,8 @@ def main() -> None:
 
         current += timedelta(days=1)
 
-    avg_profit = total_profit / day_count if day_count else 0.0
-    avg_top_profit = total_top_profit / day_count if day_count else 0.0
+    avg_profit = total_profit / total_trades if total_trades else 0.0
+    avg_top_profit = total_top_profit / total_trades if total_trades else 0.0
 
     print("Total Trades:", total_trades)
     print("Total Profit:", f"{total_profit:.2f}")

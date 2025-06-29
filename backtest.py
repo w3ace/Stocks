@@ -303,11 +303,8 @@ def main() -> None:
                 print(trades_df.to_string(index=False))
         print(f"Trades saved to {trades_path}")
 
-    ticker_count = len(ticker_rows)
-    avg_total_profit = super_total_profit / ticker_count if ticker_count else 0
-    avg_total_top_profit = (
-        super_total_top_profit / ticker_count if ticker_count else 0
-    )
+    avg_total_profit = super_total_profit / super_total_trades if super_total_trades else 0
+    avg_total_top_profit = super_total_top_profit / super_total_trades if super_total_trades else 0
 
     if ticker_rows:
         tickers_df = pd.DataFrame(ticker_rows)

@@ -2,6 +2,8 @@ import logging
 import hashlib
 from pathlib import Path
 
+import time
+
 import pandas as pd
 import yfinance as yf
 
@@ -54,6 +56,7 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
         else:
             end_dt = None
 
+#        time.sleep(0.1)
         cache_file = _cache_path(symbol, start_date, end_date, period, interval)
 
         # Cache control

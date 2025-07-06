@@ -226,7 +226,7 @@ def main() -> None:
             # Skip weekends and NYSE holidays
             current += timedelta(days=1)
             continue
-        lookback_start = current - timedelta(days=21)
+        lookback_start = current - timedelta(days=args.range if args.range else 21)
         lookback_end = current - timedelta(days=1)
 
         # Run backtest on the lookback period to select tickers
@@ -239,8 +239,6 @@ def main() -> None:
             str(args.loss_pct),
             "--profit-pct",
             str(args.profit_pct),
-            "--range",
-            str(args.range),
             "--filter",
             args.filter,
             *( ["--max-trades", str(args.max_trades)] if args.max_trades is not None else [] ),
@@ -252,10 +250,10 @@ def main() -> None:
         df = pd.read_csv(csv_path)
 
         tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(6).tolist()
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(8).tolist()
         )
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(3).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(4).tolist()
         )
 
         success_col = (
@@ -265,7 +263,7 @@ def main() -> None:
             else None
         )
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(3).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(4).tolist()
             if success_col
             else []
         )
@@ -291,8 +289,6 @@ def main() -> None:
             str(args.loss_pct),
             "--profit-pct",
             str(args.profit_pct),
-            "--range",
-            str(args.range),
             "--filter",
             str(args.filter),
             *( ["--max-trades", str(args.max_trades)] if args.max_trades is not None else [] ),

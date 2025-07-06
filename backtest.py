@@ -102,6 +102,7 @@ def main() -> None:
     parser.add_argument(
         "--output-trades",
         action="store_true",
+        default=1,
         help="Print all trades to console in an ASCII table",
     )
     parser.add_argument(

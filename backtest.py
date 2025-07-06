@@ -100,20 +100,17 @@ def main() -> None:
         help="Minimum total profit to display details (default 1.9)",
     )
     parser.add_argument(
-        "--output-trades",
-        action="store_true",
-        default=1,
-        help="Print all trades to console in an ASCII table",
+        "--console-out",
+        default="",
+        help=(
+            "Space separated options to print to console. "
+            "Use 'trades' to show all trades and 'tickers' for the per-ticker summary"
+        ),
     )
     parser.add_argument(
         "--tickers",
         action="store_true",
         help="Print per-ticker summary to console in an ASCII table",
-    )
-    parser.add_argument(
-        "--output-tickers",
-        action="store_true",
-        help="Output per-ticker metrics table to console",
     )
     parser.add_argument(
         "--plot",
@@ -307,7 +304,7 @@ def main() -> None:
             trades_df = trades_df.rename(columns={"result": "profit_or_loss"})
 
         trades_df.to_csv(trades_path, index=False)
-        if args.output_trades:
+        if "trades" in args.console_out.split():
             if tabulate:
                 print(tabulate(trades_df, headers="keys", tablefmt="grid", showindex=False))
             else:
@@ -353,7 +350,7 @@ def main() -> None:
 
 
         tickers_df.to_csv(tickers_path, index=False)
-        if args.tickers or args.output_tickers:
+        if args.tickers or "tickers" in args.console_out.split():
             if tabulate:
                 print(tabulate(tickers_df, headers="keys", tablefmt="grid", showindex=False))
             else:

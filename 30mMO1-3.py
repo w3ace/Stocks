@@ -208,6 +208,11 @@ def main() -> None:
         default=-1.0,
         help="Minimum total profit to include ticker (default -1)",
     )
+    parser.add_argument(
+        "--console-out",
+        default="",
+        help="Space separated options to print to console (tickers, trades)",
+    )
     args = parser.parse_args()
 
     start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
@@ -245,6 +250,7 @@ def main() -> None:
             "--min-profit",
             str(args.min_profit),
             *args.ticker_list,
+            *( ["--console-out", args.console_out] if args.console_out else [] ),
         ])
 
         df = pd.read_csv(csv_path)
@@ -295,6 +301,7 @@ def main() -> None:
             "--min-profit",
             str(args.min_profit),
             *tickers,
+            *( ["--console-out", args.console_out] if args.console_out else [] ),
         ])
 
         result_df = pd.read_csv(result_csv)

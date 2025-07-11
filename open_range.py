@@ -96,7 +96,8 @@ def determine_gain_or_loss(
     ):
         exit_time = first_profit_time
         exit_price = target_price
-        subset = rest_of_day.loc[:exit_time]
+        subset = rest_of_day.loc[exit_time:]
+        print(subset)
         top_price = float(subset["High"].max())
         return "profit", exit_price, exit_time, top_price
     if first_loss_time is not None:
@@ -108,6 +109,7 @@ def determine_gain_or_loss(
 
     exit_time = rest_of_day.index[-1]
     exit_price = float(rest_of_day.iloc[-1]["Close"])
+    print(rest_of_day)
     top_price = float(rest_of_day.loc[:exit_time]["High"].max())
     return "close", exit_price, exit_time, top_price
 

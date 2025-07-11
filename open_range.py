@@ -96,10 +96,15 @@ def determine_gain_or_loss(
     ):
         exit_time = first_profit_time
         exit_price = target_price
-        subset = rest_of_day.loc[exit_time:]
-        print(subset)
+
+        # Determine end time: either the stop loss or the close of day
+        last_time = rest_of_day.index[-1]
+        end_time = min(first_loss_time, last_time) if first_loss_time is not None else last_time
+
+        subset = rest_of_day.loc[exit_time:end_time]
         top_price = float(subset["High"].max())
         return "profit", exit_price, exit_time, top_price
+
     if first_loss_time is not None:
         exit_time = first_loss_time
         exit_price = stop_price

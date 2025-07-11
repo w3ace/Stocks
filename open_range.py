@@ -82,6 +82,7 @@ def determine_gain_or_loss(
     loss_hit = rest_of_day[rest_of_day["Low"] <= stop_price]
     profit_hit = rest_of_day[rest_of_day["High"] >= target_price]
 
+    # close
     if loss_hit.empty and profit_hit.empty:
         exit_time = rest_of_day.index[-1]
         exit_price = float(rest_of_day.iloc[-1]["Close"])
@@ -108,14 +109,12 @@ def determine_gain_or_loss(
     if first_loss_time is not None:
         exit_time = first_loss_time
         exit_price = stop_price
-        subset = rest_of_day.loc[:exit_time]
-        top_price = float(subset["High"].max())
+        top_price = exit_price
         return "loss", exit_price, exit_time, top_price
 
     exit_time = rest_of_day.index[-1]
     exit_price = float(rest_of_day.iloc[-1]["Close"])
-    print(rest_of_day)
-    top_price = float(rest_of_day.loc[:exit_time]["High"].max())
+    top_price = float(rest_of_day.loc[exit_time:]["High"].max())
     return "close", exit_price, exit_time, top_price
 
 

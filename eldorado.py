@@ -231,7 +231,7 @@ def main() -> None:
             # Skip weekends and NYSE holidays
             current += timedelta(days=1)
             continue
-        lookback_start = current - timedelta(days=args.range if args.range else 21)
+        lookback_start = current - timedelta(days=21)
         lookback_end = current - timedelta(days=1)
 
         # Run backtest on the lookback period to select tickers
@@ -241,7 +241,7 @@ def main() -> None:
             "--start",
             lookback_start.strftime("%Y-%m-%d"),
             "--range",
-            str(25),
+            str(args.range),
             "--loss-pct",
             str(args.loss_pct),
             "--profit-pct",
@@ -293,6 +293,8 @@ def main() -> None:
             current.strftime("%Y-%m-%d"),
             "--start",
             current.strftime("%Y-%m-%d"),
+            "--range",
+            str(args.range),
             "--loss-pct",
             str(args.loss_pct),
             "--profit-pct",

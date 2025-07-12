@@ -178,6 +178,12 @@ def main() -> None:
         help="Tickers or portfolio names used for lookback selection",
     )
     parser.add_argument(
+        "--sample",
+        type=int,
+        default=21,
+        help="Number of days to test for ticker selection (default 21)",
+    )
+    parser.add_argument(
         "--loss-pct",
         type=float,
         default=0.35,
@@ -231,7 +237,7 @@ def main() -> None:
             # Skip weekends and NYSE holidays
             current += timedelta(days=1)
             continue
-        lookback_start = current - timedelta(days=21)
+        lookback_start = current - timedelta(days=args.sample)
         lookback_end = current - timedelta(days=1)
 
         # Run backtest on the lookback period to select tickers

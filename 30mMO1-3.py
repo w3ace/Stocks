@@ -169,7 +169,7 @@ def main() -> None:
         "--range",
         type=int,
         default=30,
-        help="Opening range in minutes (default 20)",
+        help="Opening range in minutes (default 30)",
     )
     parser.add_argument(
         "--ticker-list",
@@ -240,6 +240,8 @@ def main() -> None:
             lookback_end.strftime("%Y-%m-%d"),
             "--start",
             lookback_start.strftime("%Y-%m-%d"),
+            "--range",
+            str(25),
             "--loss-pct",
             str(args.loss_pct),
             "--profit-pct",
@@ -256,10 +258,10 @@ def main() -> None:
         df = pd.read_csv(csv_path)
 
         tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(8).tolist()
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(2).tolist()
         )
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(4).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(16).tolist()
         )
 
         success_col = (
@@ -269,7 +271,7 @@ def main() -> None:
             else None
         )
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(4).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(2).tolist()
             if success_col
             else []
         )

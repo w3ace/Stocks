@@ -5,6 +5,8 @@ import logging
 import datetime
 import sys
 
+from stock_functions import round_numeric_cols
+
 # Set up logging
 logging.basicConfig(filename='stock_info.log', level=logging.ERROR, format='%(asctime)s:%(levelname)s:%(message)s')
 
@@ -24,6 +26,7 @@ def fetch_5min_data(ticker, date_str):
         if not os.path.exists(filename):
             stock = yf.Ticker(ticker)
             data = stock.history(interval='5m', start='2023-01-01', end='2023-12-31')  # Adjust the start and end dates as needed
+            data = round_numeric_cols(data)
             data.to_csv(filename)
             print(f"Fetched and saved 5-minute interval data for {ticker}")
         else:

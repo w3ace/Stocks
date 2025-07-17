@@ -5,6 +5,8 @@ import pandas as pd
 import csv
 from pathlib import Path
 
+from stock_functions import round_numeric_cols
+
 # Read the Finnhub API key from API_KEY.txt located in the project root.
 # The file should contain only the API key string and must not be tracked by
 # version control.
@@ -25,6 +27,7 @@ def fetch_us_stocks():
 
     # Convert the list of dictionaries to a DataFrame
     df = pd.DataFrame(us_stocks)
+    df = round_numeric_cols(df)
 
     # Write the DataFrame to a CSV file
     output_file = 'us_stocks.csv'

@@ -11,6 +11,8 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from stock_functions import round_numeric_cols
+
 from stock_functions import choose_yfinance_interval, period_to_start_end
 from open_range import OpenRangeAnalyzer
 
@@ -351,6 +353,7 @@ def main() -> None:
                 tickers_df[col] = tickers_df[col].map(lambda x: f"{x:.2f}")
 
 
+        tickers_df = round_numeric_cols(tickers_df)
         tickers_df.to_csv(tickers_path, index=False)
 
         ticker_root = Path("tickers")
@@ -371,6 +374,7 @@ def main() -> None:
                 combined = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
             else:
                 combined = pd.DataFrame([row])
+            combined = round_numeric_cols(combined)
             combined.to_csv(dest_file, index=False)
         if args.tickers or "tickers" in args.console_out.split():
             if tabulate:

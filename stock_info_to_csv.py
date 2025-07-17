@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 
+from stock_functions import round_numeric_cols
+
 def combine_info_to_csv(input_dir, output_file):
     # Initialize an empty list to store data from all .info files
     data = []
@@ -34,6 +36,7 @@ def combine_info_to_csv(input_dir, output_file):
 
     # Convert the list of dictionaries to a DataFrame
     df = pd.DataFrame(data)
+    df = round_numeric_cols(df)
 
     # Save the DataFrame to a CSV file
     df.to_csv(output_file, index=False)

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import pandas as pd
 
 
 def period_to_start_end(period: str, end: datetime | None = None) -> tuple[datetime, datetime]:
@@ -103,3 +104,11 @@ def choose_yfinance_interval(start=None, end=None, period=None):
             return interval
 
     return "1mo"  # fallback for extremely long durations
+
+
+def round_numeric_cols(df: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
+    """Return ``df`` with all numeric columns rounded."""
+    numeric_cols = df.select_dtypes(include="number").columns
+    if len(numeric_cols) > 0:
+        df[numeric_cols] = df[numeric_cols].round(decimals)
+    return df

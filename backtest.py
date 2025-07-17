@@ -216,6 +216,7 @@ def main() -> None:
                 "total_profit": results.total_profit,
                 "total_top_profit": results.total_top_profit,
                 "avg_trade_time": avg_minutes,
+                "analysis_time": timestamp,
             }
         )
 
@@ -316,6 +317,7 @@ def main() -> None:
 
     if ticker_rows:
         tickers_df = pd.DataFrame(ticker_rows)
+        raw_tickers_df = tickers_df.copy()
 
         surpass_df = (
             tickers_df[tickers_df["total_profit"] > args.min_profit]
@@ -350,6 +352,26 @@ def main() -> None:
 
 
         tickers_df.to_csv(tickers_path, index=False)
+
+        ticker_root = Path("tickers")
+        for _, row in raw_tickers_df.iterrows():
+            ticker = str(row.get("ticker", "")).upper()
+            if not ticker:
+                continue
+            dest_dir = ticker_root / ticker[0]
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest_file = dest_dir / f"{ticker}.csv"
+            if dest_file.exists():
+                existing = pd.read_csv(dest_file)
+                if (
+                    "analysis_time" in existing.columns
+                    and row["analysis_time"] in existing["analysis_time"].astype(str).values
+                ):
+                    continue
+                combined = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
+            else:
+                combined = pd.DataFrame([row])
+            combined.to_csv(dest_file, index=False)
         if args.tickers or "tickers" in args.console_out.split():
             if tabulate:
                 print(tabulate(tickers_df, headers="keys", tablefmt="grid", showindex=False))

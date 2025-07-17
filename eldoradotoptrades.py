@@ -48,18 +48,26 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_history(path: Path, start: pd.Timestamp, end: pd.Timestamp, rng: int) -> pd.DataFrame:
-    df = pd.read_csv(path)
-    if "analysis_time" in df.columns:
-        df["analysis_time"] = pd.to_datetime(df["analysis_time"], errors="coerce")
-        df = df[(df["analysis_time"] >= start) & (df["analysis_time"] <= end)]
-    elif "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        df = df[(df["date"] >= start) & (df["date"] <= end)]
+    """Return rows from ``path`` that match the requested parameters."""
 
+    df = pd.read_csv(path)
+
+    # Require explicit start/end columns so we can guarantee the row matches the
+    # analysis period exactly. If they're missing, no rows are considered.
+    if "start_date" not in df.columns or "end_date" not in df.columns:
+        return pd.DataFrame(columns=df.columns)
+
+    df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce")
+    df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
+    df = df[(df["start_date"] == start) & (df["end_date"] == end)]
+
+    # The range column can be named either ``open_range_minutes`` or ``range``.
     if "open_range_minutes" in df.columns:
         df = df[df["open_range_minutes"] == rng]
     elif "range" in df.columns:
         df = df[df["range"] == rng]
+    else:
+        return pd.DataFrame(columns=df.columns)
 
     return df
 

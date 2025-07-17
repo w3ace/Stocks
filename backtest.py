@@ -218,6 +218,9 @@ def main() -> None:
                 "total_profit": results.total_profit,
                 "total_top_profit": results.total_top_profit,
                 "avg_trade_time": avg_minutes,
+                "start_date": start.strftime("%Y-%m-%d"),
+                "end_date": end.strftime("%Y-%m-%d"),
+                "range": args.range,
                 "analysis_time": timestamp,
             }
         )

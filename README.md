@@ -52,6 +52,8 @@ In addition to the timestamped summary, each ticker's row is appended to
 symbol. These files are created automatically and accumulate the history
 of summary results for that ticker. A new row is skipped when the same
 `analysis_time` already exists in the file.
+Each row also records `start_date`, `end_date`, and `range` so you can
+see the analysis period and opening range used.
 Pass `--console-out trades` to print each trade in the terminal. Use `--tickers` or
 `--console-out tickers` to display the per-ticker summary in an ASCII table after the trades.
 The summary table is ordered by `total_profit` descending and entries

@@ -25,7 +25,7 @@ class OpenRangeBreakTotals:
     low_before_high_close_up: int = 0
     high_before_low_close_up: int = 0
     high_before_low_map: dict[pd.Timestamp, bool] = field(default_factory=dict)
-    low_before_high_details: list[dict[str, float | str | pd.Timestamp]] = field(
+    trade_details: list[dict[str, float | str | pd.Timestamp]] = field(
         default_factory=list
     )
 
@@ -36,7 +36,6 @@ def fetch_intraday(
     """Fetch intraday data for ``ticker`` using :func:`fetch_stock`."""
     start = pd.to_datetime(start)
     end = pd.to_datetime(end)
-
     start_est = start.tz_localize("US/Eastern") if start.tzinfo is None else start.tz_convert("US/Eastern")
     start_est = start_est.normalize() + pd.Timedelta(hours=9, minutes=30)
     start = start_est.tz_convert("UTC")
@@ -178,8 +177,6 @@ def analyze_open_range(
     prev_close = None
 
     for date, day_df in grouped:
-        if max_trades is not None and totals.total_trades >= max_trades:
-            break
         morning = day_df.between_time("09:30", open_end)
         near_closing = day_df.between_time(open_end, after_settlement)
         rest_of_day = day_df.between_time(after_settlement, "16:00")
@@ -245,7 +242,7 @@ def analyze_open_range(
             totals.total_trades += 1
             totals.total_profit += profit
             totals.total_top_profit += top_profit_pct
-            totals.low_before_high_details.append(
+            totals.trade_details.append(
                 {
                     "date": pd.to_datetime(date),
                     "time": after_or_time,
@@ -303,8 +300,6 @@ def analyze_open_range(
                     totals.broke_low_then_high += 1
             totals.high_before_low_map[pd.to_datetime(date)] = False
 
-        if max_trades is not None and totals.total_trades >= max_trades:
-            break
         prev_close = close_price
 
     return totals

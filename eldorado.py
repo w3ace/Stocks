@@ -174,7 +174,7 @@ def main() -> None:
     parser.add_argument(
         "--ticker-list",
         nargs="+",
-        default=["+20mMO-MJ"],
+        default=["AAPL NVDA GOOGL AMZN"],
         help="Tickers or portfolio names used for lookback selection",
     )
     parser.add_argument(
@@ -254,7 +254,6 @@ def main() -> None:
             str(args.profit_pct),
             "--filter",
             args.filter,
-            *( ["--max-trades", str(args.max_trades)] if args.max_trades is not None else [] ),
             "--min-profit",
             str(args.min_profit),
             *args.ticker_list,
@@ -263,11 +262,11 @@ def main() -> None:
 
         df = pd.read_csv(csv_path)
 
-        tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(2).tolist()
-        )
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(16).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(5).tolist()
+        )
+        tickers_profit = (
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(5).tolist()
         )
 
         success_col = (
@@ -277,7 +276,7 @@ def main() -> None:
             else None
         )
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(2).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(6).tolist()
             if success_col
             else []
         )
@@ -307,7 +306,6 @@ def main() -> None:
             str(args.profit_pct),
             "--filter",
             str(args.filter),
-            *( ["--max-trades", str(args.max_trades)] if args.max_trades is not None else [] ),
             "--min-profit",
             str(args.min_profit),
             *tickers,

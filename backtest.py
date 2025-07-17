@@ -192,11 +192,11 @@ def main() -> None:
 
         if results.total_profit > args.min_profit:
             surpass_tickers.append(ticker)
-        if results.low_before_high_details and results.total_profit > args.min_profit:
+        if results.trade_details and results.total_profit > args.min_profit:
 #            print(f"  Total days analyzed: {results.total_days}")
 #            print(f"  Total trades: {results.total_trades}")
 #            print(f"  Total profit: {results.total_profit}")
-            for item in results.low_before_high_details:
+            for item in results.trade_details:
                 date_str = item["date"].strftime("%Y-%m-%d")
 #                print(
 #                    f"    {date_str} - Open: {item['open']:.2f}, OR Low: {item['or_low']:.2f}, "
@@ -204,9 +204,9 @@ def main() -> None:
 #                    f"Profit: {item['profit']:.2f} ({item['result']})"
 #                )
 
-        successes = sum(1 for d in results.low_before_high_details if d["profit"] > 0)
+        successes = sum(1 for d in results.trade_details if d["profit"] > 0)
         success_pct = (successes / results.total_trades * 100) if results.total_trades else 0
-        minutes_list = [d["minutes"] for d in results.low_before_high_details if d.get("minutes") is not None]
+        minutes_list = [d["minutes"] for d in results.trade_details if d.get("minutes") is not None]
         avg_minutes = sum(minutes_list) / len(minutes_list) if minutes_list else 0
         ticker_rows.append(
             {
@@ -219,7 +219,7 @@ def main() -> None:
             }
         )
 
-        for item in results.low_before_high_details:
+        for item in results.trade_details:
             trade = item.copy()
             trade["ticker"] = ticker
             all_trades.append(trade)

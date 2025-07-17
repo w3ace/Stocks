@@ -47,6 +47,11 @@ and `GD` (Open below previous close).
 When the analysis completes, all trades are written to `./output/<timestamp>_trades.csv` and a per-ticker summary is saved to `./output/<timestamp>_tickers.csv`. The summary lists the total number of trades, the percentage of profitable trades, and the cumulative profit for each ticker. It also includes `total_top_profit`, the sum of potential profits based on each trade's peak price.
 The trades file includes a `profit_or_loss` column after `sell_time` showing whether each trade hit the profit target, stop loss, or closed at the end of the day.
 Each trade also reports `top_profit`, the percent gain from entry to the highest price reached before exiting.
+In addition to the timestamped summary, each ticker's row is appended to
+`tickers/<T>/<TICKER>.csv` where `<T>` is the first letter of the ticker
+symbol. These files are created automatically and accumulate the history
+of summary results for that ticker. A new row is skipped when the same
+`analysis_time` already exists in the file.
 Pass `--console-out trades` to print each trade in the terminal. Use `--tickers` or
 `--console-out tickers` to display the per-ticker summary in an ASCII table after the trades.
 The summary table is ordered by `total_profit` descending and entries

@@ -218,7 +218,9 @@ def main() -> None:
                 "total_profit": results.total_profit,
                 "total_top_profit": results.total_top_profit,
                 "avg_trade_time": avg_minutes,
-                "analysis_time": timestamp,
+                "start_date": start.strftime("%Y-%m-%d"),
+                "end_date": end.strftime("%Y-%m-%d"),
+                "range": args.range,
             }
         )
 
@@ -366,11 +368,16 @@ def main() -> None:
             dest_file = dest_dir / f"{ticker}.csv"
             if dest_file.exists():
                 existing = pd.read_csv(dest_file)
-                if (
-                    "analysis_time" in existing.columns
-                    and row["analysis_time"] in existing["analysis_time"].astype(str).values
-                ):
-                    continue
+                # Skip duplicate rows with all matching values
+                compare_existing = round_numeric_cols(existing.copy())
+                compare_row = round_numeric_cols(pd.DataFrame([row])).iloc[0]
+                common_cols = [c for c in compare_row.index if c in compare_existing.columns]
+                if common_cols:
+                    duplicate_mask = (
+                        compare_existing[common_cols] == compare_row[common_cols]
+                    ).all(axis=1)
+                    if duplicate_mask.any():
+                        continue
                 combined = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
             else:
                 combined = pd.DataFrame([row])

@@ -44,6 +44,14 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="Minimum value for sort column (default 0)",
     )
+    parser.add_argument(
+        "--filter",
+        default="",
+        help=(
+            "Optional filter to apply. 'basic' requires trade_success_pct > 49, "
+            "total_profit > total_trades/4, and avg_trade_time > 5"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -131,6 +139,17 @@ def main() -> None:
             row["range"] = df["open_range_minutes"].iloc[0]
         elif "range" in df.columns:
             row["range"] = df["range"].iloc[0]
+
+        if args.filter == "basic":
+            if (
+                "trade_success_pct" not in row
+                or row["trade_success_pct"] <= 49
+                or "total_profit" not in row
+                or row["total_profit"] <= row["total_trades"] / 4
+                or "avg_trade_time" not in row
+                or row["avg_trade_time"] <= 5
+            ):
+                continue
 
         if args.sort not in row or row.get(args.sort, 0) <= args.min_sort:
             continue

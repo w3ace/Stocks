@@ -361,30 +361,18 @@ def main() -> None:
 
         ticker_root = Path("tickers")
         dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{args.filter.replace(' ', '_')}"
-        for _, row in raw_tickers_df.iterrows():
-            ticker = str(row.get("ticker", "")).upper()
-            if not ticker:
-                continue
-            dest_dir = ticker_root / dir_suffix
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            dest_file = dest_dir / f"{ticker}.csv"
-            if dest_file.exists():
-                existing = pd.read_csv(dest_file)
-                # Skip duplicate rows with all matching values
-                compare_existing = round_numeric_cols(existing.copy())
-                compare_row = round_numeric_cols(pd.DataFrame([row])).iloc[0]
-                common_cols = [c for c in compare_row.index if c in compare_existing.columns]
-                if common_cols:
-                    duplicate_mask = (
-                        compare_existing[common_cols] == compare_row[common_cols]
-                    ).all(axis=1)
-                    if duplicate_mask.any():
-                        continue
-                combined = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
-            else:
-                combined = pd.DataFrame([row])
+        dest_dir = ticker_root / dir_suffix
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_file = dest_dir / f"{args.range}.csv"
+        if dest_file.exists():
+            existing = pd.read_csv(dest_file)
+            combined = pd.concat([existing, raw_tickers_df], ignore_index=True)
             combined = round_numeric_cols(combined)
-            combined.to_csv(dest_file, index=False)
+            combined = combined.drop_duplicates()
+        else:
+            combined = round_numeric_cols(raw_tickers_df)
+        combined.to_csv(dest_file, index=False)
+
         if args.tickers or "tickers" in args.console_out.split():
             if tabulate:
                 print(tabulate(tickers_df, headers="keys", tablefmt="grid", showindex=False))

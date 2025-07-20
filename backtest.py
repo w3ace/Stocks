@@ -135,25 +135,26 @@ def main() -> None:
     output_dir.mkdir(exist_ok=True)
     timestamp = pd.Timestamp.now(tz="US/Eastern").strftime("%Y%m%d_%H%M%S")
 
-    for ticker in tickers:
-        if args.start:
-            start = pd.to_datetime(args.start)
-            end = pd.to_datetime(args.end) if args.end else start
-        elif args.period:
-            end = pd.to_datetime(args.end) if args.end else None
-            start, end = period_to_start_end(args.period, end=end)
+    if args.start:
+        start = pd.to_datetime(args.start)
+        end = pd.to_datetime(args.end) if args.end else start
+    elif args.period:
+        end = pd.to_datetime(args.end) if args.end else None
+        start, end = period_to_start_end(args.period, end=end)
+    else:
+        now = pd.Timestamp.now(tz="US/Eastern")
+        nine_thirty = pd.Timestamp("09:30", tz="US/Eastern").time()
+        if now.time() < nine_thirty:
+            start = (now - pd.Timedelta(days=1)).normalize()
+            if start.dayofweek == 5:  # Saturday -> use previous Friday
+                start -= pd.Timedelta(days=1)
+            elif start.dayofweek == 6:  # Sunday -> use previous Friday
+                start -= pd.Timedelta(days=2)
+            end = start + pd.Timedelta(days=1)
         else:
-            now = pd.Timestamp.now(tz="US/Eastern")
-            nine_thirty = pd.Timestamp("09:30", tz="US/Eastern").time()
-            if now.time() < nine_thirty:
-                start = (now - pd.Timedelta(days=1)).normalize()
-                if start.dayofweek == 5:  # Saturday -> use previous Friday
-                    start -= pd.Timedelta(days=1)
-                elif start.dayofweek == 6:  # Sunday -> use previous Friday
-                    start -= pd.Timedelta(days=2)
-                end = start + pd.Timedelta(days=1)
-            else:
-                start = end = now.normalize()
+            start = end = now.normalize()
+
+    for ticker in tickers:
         interval = args.interval or choose_yfinance_interval(start=start, end=end)
 
         analyzer = OpenRangeAnalyzer(
@@ -359,11 +360,12 @@ def main() -> None:
         tickers_df.to_csv(tickers_path, index=False)
 
         ticker_root = Path("tickers")
+        dir_suffix = f"{start.strftime('%Y-%m-%d')}-{end.strftime('%Y-%m-%d')}-{args.filter.replace(' ', '_')}"
         for _, row in raw_tickers_df.iterrows():
             ticker = str(row.get("ticker", "")).upper()
             if not ticker:
                 continue
-            dest_dir = ticker_root / ticker[0]
+            dest_dir = ticker_root / dir_suffix
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest_file = dest_dir / f"{ticker}.csv"
             if dest_file.exists():

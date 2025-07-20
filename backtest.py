@@ -360,7 +360,7 @@ def main() -> None:
         tickers_df.to_csv(tickers_path, index=False)
 
         ticker_root = Path("tickers")
-        dir_suffix = f"{start.strftime('%Y-%m-%d')}-{end.strftime('%Y-%m-%d')}-{args.filter.replace(' ', '_')}"
+        dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{args.filter.replace(' ', '_')}"
         for _, row in raw_tickers_df.iterrows():
             ticker = str(row.get("ticker", "")).upper()
             if not ticker:

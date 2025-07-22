@@ -57,7 +57,6 @@ def choose_yfinance_interval(start=None, end=None, period=None):
     Chooses the best yfinance interval based on either start/end or period.
     Returns a string like '1m', '5m', '1d', etc.
     """
-    print(start,end,period)
     # Interval tiers (from yfinance limits)
     intervals = [
         ("5m", timedelta(days=60)),

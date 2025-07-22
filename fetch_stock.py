@@ -62,7 +62,7 @@ def fetch_stock(symbol, start_date=0, end_date=0, period="1mo", interval="1h"):
         # Cache control
         cache_enabled = True
         now_est = pd.Timestamp.now(tz="US/Eastern")
-        four_pm = pd.Timestamp("16:00", tz="US/Eastern").time()
+        four_pm = pd.Timestamp("16:30", tz="US/Eastern").time()
 
         if end_dt:
             try:

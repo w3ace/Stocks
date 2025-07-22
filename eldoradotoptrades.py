@@ -58,6 +58,12 @@ def parse_args() -> argparse.Namespace:
             "avg_trade_time > 5"
         ),
     )
+    parser.add_argument(
+        "--output",
+        choices=["table", "portfolio"],
+        default="table",
+        help="Display format. 'portfolio' prints tickers on one line",
+    )
     return parser.parse_args()
 
 
@@ -177,6 +183,9 @@ def main() -> None:
         print(tabulate(result, headers="keys", tablefmt="grid", showindex=False))
     else:
         print(result.to_string(index=False))
+
+    if args.output == "portfolio":
+        print(" ".join(result["ticker"].tolist()))
 
 
 if __name__ == "__main__":

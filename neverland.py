@@ -3,8 +3,14 @@ from datetime import timedelta
 
 import pandas as pd
 
+try:
+    from tabulate import tabulate
+except Exception:  # ImportError or other
+    tabulate = None
+
 from fetch_stock import fetch_stock
 from portfolio_utils import expand_ticker_args
+from stock_functions import round_numeric_cols
 
 
 def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
@@ -97,12 +103,25 @@ def main() -> None:
         default=30,
         help="Closing/opening range in minutes (default 30)",
     )
+    parser.add_argument(
+        "--console-out",
+        choices=["tickers"],
+        help="Print per-ticker summary to console in an ASCII table",
+    )
+    parser.add_argument(
+        "--max-out",
+        type=int,
+        default=25,
+        help="Maximum results to display with --console-out tickers (default 25)",
+    )
     args = parser.parse_args()
 
     start = pd.to_datetime(args.start)
     end = pd.to_datetime(args.end) if args.end else start
 
     tickers = expand_ticker_args(args.tickers)
+
+    rows: list[dict[str, float | str | int]] = []
 
     for ticker in tickers:
         hi, lo, avg, count = analyze_ticker(ticker, start, end, args.range)
@@ -112,6 +131,25 @@ def main() -> None:
         print(
             f"{ticker}: highest gain {hi:.2f}% | highest loss {lo:.2f}% | average {avg:.2f}% (n={count})"
         )
+        rows.append(
+            {
+                "ticker": ticker,
+                "highest_gain": hi,
+                "highest_loss": lo,
+                "average_gain": avg,
+                "count": count,
+            }
+        )
+
+    if args.console_out == "tickers" and rows:
+        df = pd.DataFrame(rows)
+        df = df.sort_values(by="average_gain", ascending=False)
+        df = round_numeric_cols(df)
+        df = df.head(args.max_out)
+        if tabulate:
+            print(tabulate(df, headers="keys", tablefmt="grid", showindex=False))
+        else:
+            print(df.to_string(index=False))
 
 
 if __name__ == "__main__":

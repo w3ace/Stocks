@@ -144,9 +144,6 @@ def main() -> None:
         if count == 0:
             print(f"{ticker}: no data in range")
             continue
-        print(
-            f"{ticker}: highest gain {hi:.2f}% | highest loss {lo:.2f}% | average {avg:.2f}% (n={count})"
-        )
         rows.append(
             {
                 "ticker": ticker,

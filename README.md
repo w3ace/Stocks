@@ -12,7 +12,7 @@ The opening range (the first hour high/low difference) is reported as
 
 ## Portfolios
 
-`backtest.py` supports saved portfolios. Prefix a portfolio name
+`backtest.py` and `neverland.py` support saved portfolios. Prefix a portfolio name
 with `+` to load tickers from a file in the `portfolios` directory. For
 example, running:
 

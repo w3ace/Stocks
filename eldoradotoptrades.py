@@ -150,7 +150,7 @@ def main() -> None:
         if args.sample == "basic":
             if (
                 "trade_success_pct" not in row
-                or row["trade_success_pct"] <= 49
+                or row["trade_success_pct"] <= 59
                 or "total_profit" not in row
                 or row["total_profit"] <= row["total_trades"] / 4
                 or "avg_trade_time" not in row

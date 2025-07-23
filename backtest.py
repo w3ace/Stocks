@@ -85,7 +85,8 @@ def main() -> None:
         default="",
         help=(
             "Space separated options to print to console. "
-            "Use 'trades' to show all trades and 'tickers' for the per-ticker summary"
+            "Use 'trades' to show all trades, 'value_trades' for trade price details, "
+            "and 'tickers' for the per-ticker summary"
         ),
     )
     parser.add_argument(
@@ -233,6 +234,7 @@ def main() -> None:
     daily_trade_types = None
     if all_trades:
         trades_df = pd.DataFrame(all_trades)
+        value_df = trades_df.copy()
         if args.plot == "daily":
             plot_df = trades_df.copy()
             if "date" in plot_df.columns:
@@ -256,8 +258,10 @@ def main() -> None:
             "open",
             "close",
             "buy_price",
+            "sell_price",
             "stop_price",
             "profit_price",
+            "gain_loss",
             "top_profit",
             "profit",
             "buy_time",
@@ -266,6 +270,7 @@ def main() -> None:
             "minutes",
         ]
         trades_df = trades_df[[c for c in desired_cols if c in trades_df.columns]]
+        value_df = value_df[[c for c in desired_cols if c in value_df.columns]]
 
         if "date" in trades_df.columns:
             trades_df["date"] = pd.to_datetime(trades_df["date"]).dt.strftime("%Y-%m-%d")
@@ -273,7 +278,7 @@ def main() -> None:
         if "time" in trades_df.columns:
             trades_df = trades_df.drop(columns=["time"])
 
-        for col in ["open", "close", "buy_price", "stop_price", "profit_price"]:
+        for col in ["open", "close", "buy_price", "sell_price", "stop_price", "profit_price", "gain_loss"]:
             if col in trades_df.columns:
                 trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
 
@@ -284,6 +289,34 @@ def main() -> None:
         for col in ["buy_time", "sell_time"]:
             if col in trades_df.columns:
                 trades_df[col] = pd.to_datetime(trades_df[col]).dt.strftime("%H:%M")
+
+        if value_df is not None:
+            value_print_df = value_df[[
+                c
+                for c in [
+                    "ticker",
+                    "buy_time",
+                    "sell_time",
+                    "buy_price",
+                    "sell_price",
+                    "gain_loss",
+                    "profit",
+                ]
+                if c in value_df.columns
+            ]].copy()
+            for col in ["buy_time", "sell_time"]:
+                if col in value_print_df.columns:
+                    value_print_df[col] = pd.to_datetime(value_print_df[col]).dt.strftime("%Y-%m-%d %H:%M")
+            for col in ["buy_price", "sell_price", "gain_loss"]:
+                if col in value_print_df.columns:
+                    value_print_df[col] = value_print_df[col].map(lambda x: f"${x:,.2f}")
+            if "profit" in value_print_df.columns:
+                value_print_df = value_print_df.rename(columns={"profit": "percent_gain_loss"})
+            if "value_trades" in args.console_out.split():
+                if tabulate:
+                    print(tabulate(value_print_df, headers="keys", tablefmt="grid", showindex=False))
+                else:
+                    print(value_print_df.to_string(index=False))
 
         if "result" in trades_df.columns:
             trades_df = trades_df.rename(columns={"result": "profit_or_loss"})

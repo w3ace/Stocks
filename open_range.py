@@ -232,6 +232,7 @@ def analyze_open_range(
             )
             profit = ((sell - buy) / buy) * 100
             top_profit_pct = ((top_price - buy) / buy) * 100
+            gain_loss = sell - buy
             minutes = (
                 (sell_time - after_or_time).total_seconds() / 60
                 if pd.notna(sell_time)
@@ -251,9 +252,11 @@ def analyze_open_range(
                     "or_low": float(or_low),
                     "or_high": float(or_high),
                     "buy_price": float(buy),
+                    "sell_price": float(sell),
                     "stop_price": float(stop_price),
                     "profit_price": float(target_price),
                     "profit": float(profit),
+                    "gain_loss": float(gain_loss),
                     "top_profit": float(top_profit_pct),
                     "result": outcome,
                     "buy_time": after_or_time,

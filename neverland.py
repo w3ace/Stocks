@@ -47,16 +47,16 @@ def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval
     return data
 
 
-def closing_open_gains(df: pd.DataFrame, minutes: int) -> list[float]:
-    """Return list of percent gains from closing range high to next day opening range low."""
+def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
+    """Return DataFrame of trades from closing range high to next day opening range low."""
     if df.empty:
-        return []
+        return pd.DataFrame()
 
     df = df.tz_convert("US/Eastern")
     grouped = df.groupby(df.index.date)
     dates = sorted(grouped.groups.keys())
 
-    gains: list[float] = []
+    rows: list[dict[str, float | pd.Timestamp]] = []
     for i in range(len(dates) - 1):
         today = grouped.get_group(dates[i])
         tomorrow = grouped.get_group(dates[i + 1])
@@ -65,29 +65,44 @@ def closing_open_gains(df: pd.DataFrame, minutes: int) -> list[float]:
         closing = today.between_time(close_start, "16:00")
         if closing.empty:
             continue
-        closing_high = closing["High"].max()
+        buy_idx = closing["High"].idxmax()
+        buy_price = closing.loc[buy_idx, "High"]
 
         open_end = (pd.Timestamp("09:30") + timedelta(minutes=minutes)).strftime("%H:%M")
         opening = tomorrow.between_time("09:30", open_end)
         if opening.empty:
             continue
-        opening_low = opening["Low"].min()
+        sell_idx = opening["Low"].idxmin()
+        sell_price = opening.loc[sell_idx, "Low"]
 
-        gain_pct = (opening_low - closing_high) / closing_high * 100
-        gains.append(float(gain_pct))
+        gain = sell_price - buy_price
+        gain_pct = gain / buy_price * 100
 
-    return gains
+        rows.append(
+            {
+                "buy_time": buy_idx,
+                "sell_time": sell_idx,
+                "buy_price": float(buy_price),
+                "sell_price": float(sell_price),
+                "gain": float(gain),
+                "gain_pct": float(gain_pct),
+            }
+        )
+
+    return pd.DataFrame(rows)
 
 
-def analyze_ticker(ticker: str, start: pd.Timestamp, end: pd.Timestamp, minutes: int) -> tuple[float, float, float, int]:
+def analyze_ticker(
+    ticker: str, start: pd.Timestamp, end: pd.Timestamp, minutes: int
+) -> tuple[float, float, float, int, pd.DataFrame]:
     df = fetch_intraday(ticker, start, end + pd.Timedelta(days=1), interval="5m")
-    gains = closing_open_gains(df, minutes)
-    if not gains:
-        return 0.0, 0.0, 0.0, 0
-    highest_gain = max(gains)
-    highest_loss = min(gains)
-    average_gain = sum(gains) / len(gains)
-    return highest_gain, highest_loss, average_gain, len(gains)
+    trades = closing_open_trades(df, minutes)
+    if trades.empty:
+        return 0.0, 0.0, 0.0, 0, trades
+    highest_gain = trades["gain_pct"].max()
+    highest_loss = trades["gain_pct"].min()
+    average_gain = trades["gain_pct"].mean()
+    return float(highest_gain), float(highest_loss), float(average_gain), len(trades), trades
 
 
 def main() -> None:
@@ -105,8 +120,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--console-out",
-        choices=["tickers"],
-        help="Print per-ticker summary to console in an ASCII table",
+        choices=["tickers", "trades"],
+        help="Print per-ticker summary or trade details to console in an ASCII table",
     )
     parser.add_argument(
         "--max-out",
@@ -122,9 +137,10 @@ def main() -> None:
     tickers = expand_ticker_args(args.tickers)
 
     rows: list[dict[str, float | str | int]] = []
+    trades_rows: list[dict[str, float | str | pd.Timestamp]] = []
 
     for ticker in tickers:
-        hi, lo, avg, count = analyze_ticker(ticker, start, end, args.range)
+        hi, lo, avg, count, trades = analyze_ticker(ticker, start, end, args.range)
         if count == 0:
             print(f"{ticker}: no data in range")
             continue
@@ -140,6 +156,10 @@ def main() -> None:
                 "count": count,
             }
         )
+        if not trades.empty:
+            tdf = trades.copy()
+            tdf["ticker"] = ticker
+            trades_rows.extend(tdf.to_dict(orient="records"))
 
     if args.console_out == "tickers" and rows:
         df = pd.DataFrame(rows)
@@ -150,6 +170,17 @@ def main() -> None:
             print(tabulate(df, headers="keys", tablefmt="grid", showindex=False))
         else:
             print(df.to_string(index=False))
+
+    if args.console_out == "trades" and trades_rows:
+        trades_df = pd.DataFrame(trades_rows)
+        trades_df = trades_df.sort_values(by="buy_time")
+        for col in ["buy_time", "sell_time"]:
+            trades_df[col] = pd.to_datetime(trades_df[col]).dt.strftime("%Y-%m-%d %H:%M")
+        trades_df = round_numeric_cols(trades_df)
+        if tabulate:
+            print(tabulate(trades_df, headers="keys", tablefmt="grid", showindex=False))
+        else:
+            print(trades_df.to_string(index=False))
 
 
 if __name__ == "__main__":

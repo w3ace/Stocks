@@ -4,6 +4,7 @@ from datetime import timedelta
 import pandas as pd
 
 from fetch_stock import fetch_stock
+from portfolio_utils import expand_ticker_args
 
 
 def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
@@ -101,7 +102,9 @@ def main() -> None:
     start = pd.to_datetime(args.start)
     end = pd.to_datetime(args.end) if args.end else start
 
-    for ticker in args.tickers:
+    tickers = expand_ticker_args(args.tickers)
+
+    for ticker in tickers:
         hi, lo, avg, count = analyze_ticker(ticker, start, end, args.range)
         if count == 0:
             print(f"{ticker}: no data in range")

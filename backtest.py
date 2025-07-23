@@ -15,29 +15,8 @@ from stock_functions import round_numeric_cols
 
 from stock_functions import choose_yfinance_interval, period_to_start_end
 from open_range import OpenRangeAnalyzer
+from portfolio_utils import expand_ticker_args
 
-
-def expand_ticker_args(ticker_args: list[str]) -> list[str]:
-    """Expand any portfolio references in ``ticker_args``.
-
-    Tickers beginning with ``+`` are treated as portfolio names. The
-    corresponding file in ``./portfolios`` is read and the contained
-    tickers are added to the list.
-    """
-    expanded: list[str] = []
-    for token in ticker_args:
-        if token.startswith("+"):
-            name = token[1:]
-            path = Path("portfolios") / f"{name}"
-            if path.exists():
-                expanded.extend(path.read_text().split())
-            else:
-                print(f"Portfolio file not found: {path}")
-        else:
-            expanded.append(token)
-
-    # Remove duplicates while preserving order
-    return list(dict.fromkeys(expanded))
 
 
 def main() -> None:

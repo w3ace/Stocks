@@ -66,15 +66,15 @@ def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
         closing = today.between_time(close_start, "16:00")
         if closing.empty:
             continue
-        buy_idx = closing["High"].idxmax()
-        buy_price = closing.loc[buy_idx, "High"]
+        buy_idx = closing["Close"].idxmax()
+        buy_price = closing.loc[buy_idx, "Close"]
 
         open_end = (pd.Timestamp("09:30") + timedelta(minutes=minutes)).strftime("%H:%M")
         opening = tomorrow.between_time("09:30", open_end)
         if opening.empty:
             continue
-        sell_idx = opening["Low"].idxmin()
-        sell_price = opening.loc[sell_idx, "Low"]
+        sell_idx = opening["Open"].idxmin()
+        sell_price = opening.loc[sell_idx, "Open"]
 
         gain = sell_price - buy_price
         gain_pct = gain / buy_price * 100

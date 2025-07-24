@@ -1,28 +1,9 @@
 import argparse
 import math
-from pathlib import Path
 import pandas as pd
 
 from fetch_stock import fetch_stock
-
-
-def expand_ticker_args(ticker_args: list[str]) -> list[str]:
-    """Expand portfolio names prefixed with ``+`` to tickers.
-
-    Tickers are read from files in the ``portfolios`` directory.
-    """
-    expanded: list[str] = []
-    for token in ticker_args:
-        if token.startswith("+"):
-            name = token[1:]
-            path = Path("portfolios") / name
-            if path.exists():
-                expanded.extend(path.read_text().split())
-            else:
-                print(f"Portfolio file not found: {path}")
-        else:
-            expanded.append(token)
-    return expanded
+from portfolio_utils import expand_ticker_args
 
 
 def fetch_latest_price(ticker: str) -> float | None:

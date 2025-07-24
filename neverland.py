@@ -68,6 +68,7 @@ def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
             continue
         buy_idx = closing["Close"].idxmax()
         buy_price = closing.loc[buy_idx, "Close"]
+        buy_low = closing["Close"].min()
 
         open_end = (pd.Timestamp("09:30") + timedelta(minutes=minutes)).strftime("%H:%M")
         opening = tomorrow.between_time("09:30", open_end)
@@ -75,9 +76,14 @@ def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
             continue
         sell_idx = opening["Open"].idxmin()
         sell_price = opening.loc[sell_idx, "Open"]
+        sell_high = opening["Open"].max()
 
         gain = sell_price - buy_price
         gain_pct = gain / buy_price * 100
+        max_loss = opening["Open"].min() - closing["Close"].max()
+        max_loss_pct = max_loss / closing["Close"].max() * 100
+        max_gain = sell_high - buy_low
+        max_gain_pct = max_gain / buy_low * 100
 
         rows.append(
             {
@@ -87,6 +93,10 @@ def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
                 "sell_price": float(sell_price),
                 "gain": float(gain),
                 "gain_pct": float(gain_pct),
+                "max_loss": float(max_loss),
+                "max_loss_pct": float(max_loss_pct),
+                "max_gain": float(max_gain),
+                "max_gain_pct": float(max_gain_pct),
             }
         )
 
@@ -95,15 +105,25 @@ def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
 
 def analyze_ticker(
     ticker: str, start: pd.Timestamp, end: pd.Timestamp, minutes: int
-) -> tuple[float, float, float, int, pd.DataFrame]:
+) -> tuple[float, float, float, float, float, int, pd.DataFrame]:
     df = fetch_intraday(ticker, start, end + pd.Timedelta(days=1), interval="5m")
     trades = closing_open_trades(df, minutes)
     if trades.empty:
-        return 0.0, 0.0, 0.0, 0, trades
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0, trades
     highest_gain = trades["gain_pct"].max()
     highest_loss = trades["gain_pct"].min()
     average_gain = trades["gain_pct"].mean()
-    return float(highest_gain), float(highest_loss), float(average_gain), len(trades), trades
+    average_max_loss = trades["max_loss_pct"].mean()
+    average_max_gain = trades["max_gain_pct"].mean()
+    return (
+        float(highest_gain),
+        float(highest_loss),
+        float(average_gain),
+        float(average_max_loss),
+        float(average_max_gain),
+        len(trades),
+        trades,
+    )
 
 
 def main() -> None:
@@ -141,7 +161,9 @@ def main() -> None:
     trades_rows: list[dict[str, float | str | pd.Timestamp]] = []
 
     for ticker in tickers:
-        hi, lo, avg, count, trades = analyze_ticker(ticker, start, end, args.range)
+        hi, lo, avg, avg_max_loss, avg_max_gain, count, trades = analyze_ticker(
+            ticker, start, end, args.range
+        )
         if count == 0:
             print(f"{ticker}: no data in range")
             continue
@@ -151,6 +173,8 @@ def main() -> None:
                 "highest_gain": hi,
                 "highest_loss": lo,
                 "average_gain": avg,
+                "average_max_loss": avg_max_loss,
+                "average_max_gain": avg_max_gain,
                 "count": count,
             }
         )

@@ -4,33 +4,11 @@ try:
     from tabulate import tabulate
 except Exception:
     tabulate = None
-from pathlib import Path
-from typing import Iterable
+from portfolio_utils import expand_ticker_args
 
 import pandas as pd
 
 from fetch_stock import fetch_stock
-
-
-def expand_ticker_args(ticker_args: Iterable[str]) -> list[str]:
-    """Expand any portfolio references in ``ticker_args``.
-
-    Tokens beginning with ``+`` are treated as portfolio filenames under
-    ``./portfolios``. The tickers listed inside are added to the result.
-    """
-    expanded: list[str] = []
-    for token in ticker_args:
-        if token.startswith("+"):
-            name = token[1:]
-            path = Path("portfolios") / name
-            if path.exists():
-                expanded.extend(path.read_text().split())
-            else:
-                print(f"Portfolio file not found: {path}")
-        else:
-            expanded.append(token)
-    return expanded
-
 
 def fetch_last_open_close(ticker: str) -> tuple[float, float] | None:
     """Return the last day's open and close for ``ticker``."""

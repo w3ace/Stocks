@@ -192,6 +192,15 @@ def main() -> None:
         trades_df.to_csv(dest_file, index=False)
         print(f"Trades saved to {dest_file}")
 
+    total_trades = len(trades_rows)
+    total_tickers = len(rows)
+    avg_gain = (
+        sum(r["gain_pct"] for r in trades_rows) / total_trades if total_trades else 0.0
+    )
+    print(
+        f"Totals - trades: {total_trades}, tickers: {total_tickers}, avg gain: {avg_gain:.2f}%"
+    )
+
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,6 @@
 import argparse
 from datetime import timedelta
+from pathlib import Path
 
 import pandas as pd
 
@@ -168,6 +169,12 @@ def main() -> None:
         else:
             print(df.to_string(index=False))
 
+        dest_dir = Path("tickers") / "neverland"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_file = dest_dir / f"{start.strftime('%Y-%m-%d')}-{end.strftime('%Y-%m-%d')}.csv"
+        df.to_csv(dest_file, index=False)
+        print(f"Ticker summary saved to {dest_file}")
+
     if args.console_out == "trades" and trades_rows:
         trades_df = pd.DataFrame(trades_rows)
         trades_df = trades_df.sort_values(by="buy_time")
@@ -178,6 +185,12 @@ def main() -> None:
             print(tabulate(trades_df, headers="keys", tablefmt="grid", showindex=False))
         else:
             print(trades_df.to_string(index=False))
+
+        dest_dir = Path("trades") / "neverland"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_file = dest_dir / f"{start.strftime('%Y-%m-%d')}-{end.strftime('%Y-%m-%d')}.csv"
+        trades_df.to_csv(dest_file, index=False)
+        print(f"Trades saved to {dest_file}")
 
 
 if __name__ == "__main__":

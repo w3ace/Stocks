@@ -49,7 +49,12 @@ def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval
 
 
 def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
-    """Return DataFrame of trades from closing range high to next day opening range low."""
+    """Return DataFrame of stats for the closing and opening ranges.
+
+    ``minutes`` defines the length of both ranges. Each row contains the
+    open, close, high and low for the buy (closing) range and the sell
+    (opening) range along with gain metrics.
+    """
     if df.empty:
         return pd.DataFrame()
 
@@ -62,35 +67,51 @@ def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
         today = grouped.get_group(dates[i])
         tomorrow = grouped.get_group(dates[i + 1])
 
-        close_start = (pd.Timestamp("16:00") - timedelta(minutes=minutes)).strftime("%H:%M")
+        close_start = (
+            pd.Timestamp("16:00") - timedelta(minutes=minutes)
+        ).strftime("%H:%M")
         closing = today.between_time(close_start, "16:00")
         if closing.empty:
             continue
-        buy_idx = closing["Close"].idxmax()
-        buy_price = closing.loc[buy_idx, "Close"]
-        buy_low = closing["Close"].min()
 
-        open_end = (pd.Timestamp("09:30") + timedelta(minutes=minutes)).strftime("%H:%M")
+        buy_open = closing.iloc[0]["Open"]
+        buy_close = closing.iloc[-1]["Close"]
+        buy_high = closing["High"].max()
+        buy_low = closing["Low"].min()
+
+        open_end = (
+            pd.Timestamp("09:30") + timedelta(minutes=minutes)
+        ).strftime("%H:%M")
         opening = tomorrow.between_time("09:30", open_end)
         if opening.empty:
             continue
-        sell_idx = opening["Open"].idxmin()
-        sell_price = opening.loc[sell_idx, "Open"]
-        sell_high = opening["Open"].max()
 
-        gain = sell_price - buy_price
-        gain_pct = gain / buy_price * 100
-        max_loss = opening["Open"].min() - closing["Close"].max()
-        max_loss_pct = max_loss / closing["Close"].max() * 100
+        sell_open = opening.iloc[0]["Open"]
+        sell_close = opening.iloc[-1]["Close"]
+        sell_high = opening["High"].max()
+        sell_low = opening["Low"].min()
+
+        gain = sell_open - buy_close
+        gain_pct = gain / buy_close * 100
+
+        max_loss = sell_low - buy_high
+        max_loss_pct = max_loss / buy_high * 100
+
         max_gain = sell_high - buy_low
         max_gain_pct = max_gain / buy_low * 100
 
         rows.append(
             {
-                "buy_time": buy_idx,
-                "sell_time": sell_idx,
-                "buy_price": float(buy_price),
-                "sell_price": float(sell_price),
+                "buy_time": closing.index[-1],
+                "sell_time": opening.index[0],
+                "buy_open": float(buy_open),
+                "buy_close": float(buy_close),
+                "buy_low": float(buy_low),
+                "buy_high": float(buy_high),
+                "sell_open": float(sell_open),
+                "sell_close": float(sell_close),
+                "sell_low": float(sell_low),
+                "sell_high": float(sell_high),
                 "gain": float(gain),
                 "gain_pct": float(gain_pct),
                 "max_loss": float(max_loss),
@@ -128,7 +149,10 @@ def analyze_ticker(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Calculate overnight gains from closing range high to next day opening range low",
+        description=(
+            "Analyze closing and opening ranges. ``--range`` minutes defines "
+            "both the buy and sell ranges."
+        ),
     )
     parser.add_argument("tickers", nargs="+", help="Ticker symbols")
     parser.add_argument("--start", required=True, help="Start date YYYY-MM-DD")
@@ -137,7 +161,10 @@ def main() -> None:
         "--range",
         type=int,
         default=30,
-        help="Closing/opening range in minutes (default 30)",
+        help=(
+            "Length in minutes of both the buy range (before close) and the "
+            "sell range (after open)."
+        ),
     )
     parser.add_argument(
         "--console-out",

@@ -53,8 +53,8 @@ When the analysis completes, all trades are written to `./output/<timestamp>_tra
 The trades file includes a `profit_or_loss` column after `sell_time` showing whether each trade hit the profit target, stop loss, or closed at the end of the day.
 Each trade also reports `top_profit`, the percent gain from entry to the highest price reached before exiting.
 In addition to the timestamped summary, all ticker rows are appended to
-`./<ticker>/<start-date>-<end-date>-<filter>/<tickers>-<range>.csv`. The
-`<ticker>` directory is derived from the `--ticker-list` argument before
+`./tickers/<start-date>-<end-date>-<filter>/<ticker-list>-<range>.csv`. The
+`<ticker-list>` portion comes from the `--ticker-list` argument before
 portfolio expansion with spaces and special characters removed. This single file
 accumulates the history of summary results for each analysis period and
 filter. Each row also records `start_date`, `end_date`, and `range` so

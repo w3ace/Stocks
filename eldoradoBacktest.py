@@ -379,16 +379,10 @@ def main() -> None:
             )
 
     print("Total Trades:", super_total_trades)
-    print("Total Profit:", f"{super_total_profit:.2f}")
-    print(
-        "Avg Total Profit:",
-        f"{avg_total_profit:.2f} ({avg_total_profit / 100 * 10000:,.2f} on $10,000)",
-    )
-    print("Total Top Profit:", f"{super_total_top_profit:.2f}")
-    print(
-        "Avg Total Top Profit:",
-        f"{avg_total_top_profit:.2f} ({avg_total_top_profit / 100 * 10000:,.2f} on $10,000)",
-    )
+    print("Total Profit:", f"{super_total_profit:.3f}")
+    print("Total Top Profit:", f"{super_total_top_profit:.3f}")
+    print("Avg Total Profit:",f"{avg_total_profit:.4f}")
+    print("Avg Total Top Profit:",f"{avg_total_top_profit:.4f}")
 
     if (
         args.plot == "daily"

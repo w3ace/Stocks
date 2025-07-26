@@ -59,7 +59,8 @@ portfolio expansion with spaces and special characters removed. This single file
 accumulates the history of summary results for each analysis period and
 filter. Each row also records `start_date`, `end_date`, and `range` so
 you can see the analysis period and opening range used.
-Pass `--console-out trades` to print each trade in the terminal. Use `--tickers` or
+Pass `--console-out trades` to print each trade in the terminal. Use `--console-out value_trades` to
+show trade entry and exit prices along with gains. Use `--tickers` or
 `--console-out tickers` to display the per-ticker summary in an ASCII table after the trades.
 The summary table is ordered by `total_profit` descending and entries
 with profits less than the value passed to `--min-profit` are omitted.

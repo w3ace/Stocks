@@ -15,7 +15,7 @@ from stock_functions import round_numeric_cols
 
 from stock_functions import choose_yfinance_interval, period_to_start_end
 from open_range import OpenRangeAnalyzer
-from portfolio_utils import expand_ticker_args
+from portfolio_utils import expand_ticker_args, sanitize_ticker_string
 
 
 
@@ -101,6 +101,7 @@ def main() -> None:
     args = parser.parse_args()
 
     tickers = expand_ticker_args(args.ticker)
+    ticker_label = sanitize_ticker_string(tickers)
 
     super_total_trades = 0
     super_total_profit = 0
@@ -338,11 +339,11 @@ def main() -> None:
         tickers_df = round_numeric_cols(tickers_df)
         tickers_df.to_csv(tickers_path, index=False)
 
-        ticker_root = Path("tickers")
+        ticker_root = Path(ticker_label)
         dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{args.filter.replace(' ', '_')}"
         dest_dir = ticker_root / dir_suffix
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest_file = dest_dir / f"{args.range}.csv"
+        dest_file = dest_dir / f"{ticker_label}-{args.range}.csv"
         if dest_file.exists():
             existing = pd.read_csv(dest_file)
             combined = pd.concat([existing, raw_tickers_df], ignore_index=True)

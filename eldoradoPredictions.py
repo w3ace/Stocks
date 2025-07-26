@@ -348,7 +348,7 @@ def main() -> None:
             current,
             str(args.filter),
             args.range,
-            tickers,
+            args.ticker_list,
         )
         result_df = pd.read_csv(result_csv)
         trades_df = pd.read_csv(trades_csv)

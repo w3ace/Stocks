@@ -134,6 +134,14 @@ def main() -> None:
         else:
             start = end = now.normalize()
 
+    chart_dir = Path("eldoradoCharts") / (
+        f"backtest-{start.strftime('%m-%d-%Y')}-"
+        f"{end.strftime('%m-%d-%Y')}-"
+        f"{args.filter.replace(' ', '_')}"
+    )
+    chart_dir.mkdir(parents=True, exist_ok=True)
+    chart_path = chart_dir / f"{ticker_label}-{args.range}.png"
+
     for ticker in tickers:
         interval = args.interval or choose_yfinance_interval(start=start, end=end)
 
@@ -453,6 +461,7 @@ def main() -> None:
         )
 
         fig.tight_layout()
+        plt.savefig(chart_path)
         plt.show()
 
 if __name__ == "__main__":

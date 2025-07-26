@@ -63,8 +63,12 @@ def is_trading_day(day: date) -> bool:
     return pd.Timestamp(day) not in holidays
 
 
-def plot_daily_results(df: pd.DataFrame) -> None:
-    """Plot daily average profit and trade counts similar to eldoradoBacktest."""
+def plot_daily_results(df: pd.DataFrame, save_path: Path | None = None) -> None:
+    """Plot daily average profit and trade counts similar to eldoradoBacktest.
+
+    If *save_path* is provided the chart will be written to that location in
+    addition to being displayed.
+    """
 
     x = range(len(df))
 
@@ -138,6 +142,8 @@ def plot_daily_results(df: pd.DataFrame) -> None:
     ax1.set_xticklabels([d.strftime("%Y-%m-%d") for d in df.index], rotation=45)
 
     fig.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
     plt.show()
 
 
@@ -240,6 +246,14 @@ def main() -> None:
 
     start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
     end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
+
+    chart_dir = Path("eldoradoCharts") / (
+        f"predictions-{start_date.strftime('%m-%d-%Y')}-"
+        f"{end_date.strftime('%m-%d-%Y')}-"
+        f"{args.filter.replace(' ', '_')}"
+    )
+    chart_dir.mkdir(parents=True, exist_ok=True)
+    chart_path = chart_dir / f"{sanitize_ticker_string(args.ticker_list)}-{args.range}.png"
 
     current = start_date
     total_trades = 0
@@ -442,7 +456,7 @@ def main() -> None:
 
     if daily_stats:
         plot_df = pd.DataFrame(daily_stats).set_index("date")
-        plot_daily_results(plot_df)
+        plot_daily_results(plot_df, chart_path)
 
 
 if __name__ == "__main__":

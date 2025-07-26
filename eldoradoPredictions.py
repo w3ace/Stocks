@@ -3,6 +3,11 @@ import subprocess
 from datetime import datetime, timedelta, date
 from pathlib import Path
 
+try:
+    from tabulate import tabulate
+except Exception:  # ImportError or other
+    tabulate = None
+
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -216,7 +221,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--console-out",
-        default="",
+        default="none",
         help="Space separated options to print to console (tickers, trades)",
     )
     args = parser.parse_args()
@@ -231,6 +236,7 @@ def main() -> None:
     day_count = 0
     ticker_history: list[list[str]] = []
     daily_stats: list[dict[str, float | int | datetime]] = []
+    all_trades: list[pd.DataFrame] = []
 
     while current <= end_date:
         if not is_trading_day(current):
@@ -257,7 +263,11 @@ def main() -> None:
             "--min-profit",
             str(args.min_profit),
             *args.ticker_list,
-            *( ["--console-out", args.console_out] if args.console_out else [] ),
+            *(
+                ["--console-out", args.console_out]
+                if args.console_out and args.console_out != "none"
+                else []
+            ),
         ])
 
         df = pd.read_csv(csv_path)
@@ -309,11 +319,17 @@ def main() -> None:
             "--min-profit",
             str(args.min_profit),
             *tickers,
-            *( ["--console-out", args.console_out] if args.console_out else [] ),
+            *(
+                ["--console-out", args.console_out]
+                if args.console_out and args.console_out != "none"
+                else []
+            ),
         ])
 
         result_df = pd.read_csv(result_csv)
         trades_df = pd.read_csv(trades_csv)
+        if "trades" in args.console_out.split():
+            all_trades.append(trades_df)
 
         total_trades += result_df["total_trades"].sum()
         total_profit += result_df["total_profit"].sum()
@@ -354,9 +370,49 @@ def main() -> None:
     print("Total Top Profit:", f"{total_top_profit:.2f}")
     print("Avg Profit:", f"{avg_profit:.2f}")
     print("Avg Top Profit:", f"{avg_top_profit:.2f}")
-    print("Ticker List:")
-    for i, tick_list in enumerate(ticker_history, start=1):
-        print(f"Day {i}: {' '.join(tick_list)}")
+    if "tickers" in args.console_out.split():
+        print("Ticker List:")
+        for i, tick_list in enumerate(ticker_history, start=1):
+            print(f"Day {i}: {' '.join(tick_list)}")
+
+    if "trades" in args.console_out.split() and all_trades:
+        trades_df = pd.concat(all_trades, ignore_index=True)
+        desired_cols = [
+            "date",
+            "time",
+            "ticker",
+            "open",
+            "close",
+            "buy_price",
+            "stop_price",
+            "profit_price",
+            "top_profit",
+            "profit",
+            "buy_time",
+            "sell_time",
+            "result",
+            "minutes",
+        ]
+        trades_df = trades_df[[c for c in desired_cols if c in trades_df.columns]]
+        if "date" in trades_df.columns:
+            trades_df["date"] = pd.to_datetime(trades_df["date"]).dt.strftime("%Y-%m-%d")
+        if "time" in trades_df.columns:
+            trades_df = trades_df.drop(columns=["time"])
+        for col in ["open", "close", "buy_price", "stop_price", "profit_price"]:
+            if col in trades_df.columns:
+                trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
+        for col in ["profit", "top_profit"]:
+            if col in trades_df.columns:
+                trades_df[col] = trades_df[col].map(lambda x: f"{x:.2f}")
+        for col in ["buy_time", "sell_time"]:
+            if col in trades_df.columns:
+                trades_df[col] = pd.to_datetime(trades_df[col]).dt.strftime("%H:%M")
+        if "result" in trades_df.columns:
+            trades_df = trades_df.rename(columns={"result": "profit_or_loss"})
+        if tabulate:
+            print(tabulate(trades_df, headers="keys", tablefmt="grid", showindex=False))
+        else:
+            print(trades_df.to_string(index=False))
 
     if daily_stats:
         plot_df = pd.DataFrame(daily_stats).set_index("date")

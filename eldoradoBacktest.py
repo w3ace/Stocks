@@ -447,7 +447,16 @@ def main() -> None:
         if line_top is not None:
             lines.append(line_top)
         labels = [l.get_label() for l in lines]
-        ax1.legend(lines, labels, loc="upper left")
+
+        summary_text = (
+            f"Total Trades: {super_total_trades}\n"
+            f"Total Profit: {super_total_profit:.3f}\n"
+            f"Total Top Profit: {super_total_top_profit:.3f}\n"
+            f"Avg Total Profit: {avg_total_profit:.4f}\n"
+            f"Avg Total Top Profit: {avg_total_top_profit:.4f}"
+        )
+
+        ax1.legend(lines, labels, loc="upper left", title=summary_text)
 
         ax1.set_xticks(list(x))
         ax1.set_xticklabels(

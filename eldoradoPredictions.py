@@ -64,7 +64,7 @@ def is_trading_day(day: date) -> bool:
 
 
 def plot_daily_results(df: pd.DataFrame) -> None:
-    """Plot daily average profit and trade counts similar to backtest."""
+    """Plot daily average profit and trade counts similar to eldoradoBacktest."""
 
     x = range(len(df))
 
@@ -142,17 +142,17 @@ def plot_daily_results(df: pd.DataFrame) -> None:
 
 
 def run_backtest(arguments: list[str]) -> tuple[Path, Path]:
-    """Run backtest.py with the given arguments and return output csv paths."""
+    """Run eldoradoBacktest.py with the given arguments and return output csv paths."""
 
     result = subprocess.run(
-        ["python", "backtest.py", *arguments], capture_output=True, text=True
+        ["python", "eldoradoBacktest.py", *arguments], capture_output=True, text=True
     )
     if result.stdout:
         print(result.stdout)
     if result.stderr:
         print(result.stderr)
     if result.returncode != 0:
-        raise RuntimeError("backtest.py failed")
+        raise RuntimeError("eldoradoBacktest.py failed")
 
     out_dir = Path("output")
     tickers = sorted(
@@ -258,7 +258,7 @@ def main() -> None:
         lookback_start = current - timedelta(days=args.sample)
         lookback_end = current - timedelta(days=1)
 
-        # Run backtest on the lookback period to select tickers
+        # Run eldoradoBacktest on the lookback period to select tickers
         run_backtest([
             "--end",
             lookback_end.strftime("%Y-%m-%d"),
@@ -320,7 +320,7 @@ def main() -> None:
 
         ticker_history.append(tickers)
 
-        # Run backtest for the current day using selected tickers
+        # Run eldoradoBacktest for the current day using selected tickers
         _, trades_csv = run_backtest([
             "--end",
             current.strftime("%Y-%m-%d"),

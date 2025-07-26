@@ -100,8 +100,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    ticker_label = sanitize_ticker_string(args.ticker)
     tickers = expand_ticker_args(args.ticker)
-    ticker_label = sanitize_ticker_string(tickers)
 
     super_total_trades = 0
     super_total_profit = 0

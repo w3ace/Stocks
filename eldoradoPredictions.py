@@ -272,29 +272,6 @@ def main() -> None:
         lookback_start = current - timedelta(days=args.sample)
         lookback_end = current - timedelta(days=1)
 
-        # Run eldoradoBacktest on the lookback period to select tickers
-        run_backtest([
-            "--end",
-            lookback_end.strftime("%Y-%m-%d"),
-            "--start",
-            lookback_start.strftime("%Y-%m-%d"),
-            "--range",
-            str(args.range),
-            "--loss-pct",
-            str(args.loss_pct),
-            "--profit-pct",
-            str(args.profit_pct),
-            "--filter",
-            args.filter,
-            "--min-profit",
-            str(args.min_profit),
-            *args.ticker_list,
-  #          *(
-   #             ["--console-out", args.console_out]
-    #            if args.console_out and args.console_out != "none"
-     #           else []
-      #      ),
-        ])
         lookback_csv = ticker_summary_path(
             lookback_start,
             lookback_end,
@@ -302,6 +279,34 @@ def main() -> None:
             args.range,
             args.ticker_list,
         )
+
+        # Run eldoradoBacktest on the lookback period only when results are
+        # missing from the ``tickers`` directory.  This avoids re-processing
+        # data that has already been analyzed.
+        if not lookback_csv.is_file():
+            run_backtest([
+                "--end",
+                lookback_end.strftime("%Y-%m-%d"),
+                "--start",
+                lookback_start.strftime("%Y-%m-%d"),
+                "--range",
+                str(args.range),
+                "--loss-pct",
+                str(args.loss_pct),
+                "--profit-pct",
+                str(args.profit_pct),
+                "--filter",
+                args.filter,
+                "--min-profit",
+                str(args.min_profit),
+                *args.ticker_list,
+                # *(
+                #     ["--console-out", args.console_out]
+                #     if args.console_out and args.console_out != "none"
+                #     else []
+                # ),
+            ])
+
         df = pd.read_csv(lookback_csv)
 
         tickers_top_profit = (

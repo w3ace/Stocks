@@ -344,13 +344,7 @@ def main() -> None:
         dest_dir = ticker_root / dir_suffix
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_file = dest_dir / f"{ticker_label}-{args.range}.csv"
-        if dest_file.exists():
-            existing = pd.read_csv(dest_file)
-            combined = pd.concat([existing, raw_tickers_df], ignore_index=True)
-            combined = round_numeric_cols(combined)
-            combined = combined.drop_duplicates()
-        else:
-            combined = round_numeric_cols(raw_tickers_df)
+        combined = round_numeric_cols(raw_tickers_df)
         combined.to_csv(dest_file, index=False)
 
         if args.tickers or "tickers" in args.console_out.split():

@@ -12,12 +12,12 @@ The opening range (the first hour high/low difference) is reported as
 
 ## Portfolios
 
-`backtest.py` and `neverland.py` support saved portfolios. Prefix a portfolio name
+`eldoradoBacktest.py` and `neverland.py` support saved portfolios. Prefix a portfolio name
 with `+` to load tickers from a file in the `portfolios` directory. For
 example, running:
 
 ```
-python backtest.py +M9 --period 6mo
+python eldoradoBacktest.py +M9 --period 6mo
 ```
 
 reads tickers from `portfolios/M9.txt` which might contain:
@@ -31,10 +31,10 @@ arguments can safely include overlapping symbols.
 
 Prefixing a portfolio name with ``-`` will remove any tickers listed in
 that file from the final set.  Additions are processed before
-exclusions, so ``python backtest.py +M9 -Tech`` loads the ``M9``
+exclusions, so ``python eldoradoBacktest.py +M9 -Tech`` loads the ``M9``
 portfolio and then excludes the tickers found in ``portfolios/Tech``.
 
-If you omit both `--period` and `--start`, `backtest.py` will
+If you omit both `--period` and `--start`, `eldoradoBacktest.py` will
 analyze a single day automatically. When run before 9:30 AM US/Eastern it
 uses the previous trading day (adjusting for weekends); otherwise it uses
 the current day.

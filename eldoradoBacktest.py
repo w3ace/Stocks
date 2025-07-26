@@ -142,6 +142,28 @@ def main() -> None:
     chart_dir.mkdir(parents=True, exist_ok=True)
     chart_path = chart_dir / f"{ticker_label}-{args.range}.png"
 
+    # Skip tickers that already have results saved under ./tickers
+    ticker_root = Path("tickers")
+    dir_suffix = (
+        f"{start.strftime('%m-%d-%Y')}-"
+        f"{end.strftime('%m-%d-%Y')}-"
+        f"{args.filter.replace(' ', '_')}"
+    )
+    dest_dir = ticker_root / dir_suffix
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_file = dest_dir / f"{ticker_label}-{args.range}.csv"
+    existing_df: pd.DataFrame | None = None
+    if dest_file.is_file():
+        try:
+            existing_df = pd.read_csv(dest_file)
+            processed = set(existing_df.get("ticker", []).astype(str).str.upper())
+            tickers = [t for t in tickers if t.upper() not in processed]
+            if not tickers:
+                print(f"All tickers already processed in {dest_file}")
+        except Exception as e:
+            print(f"Failed to read existing ticker data {dest_file}: {e}")
+            existing_df = None
+
     for ticker in tickers:
         interval = args.interval or choose_yfinance_interval(start=start, end=end)
 
@@ -308,8 +330,23 @@ def main() -> None:
     avg_total_profit = super_total_profit / super_total_trades if super_total_trades else 0
     avg_total_top_profit = super_total_top_profit / super_total_trades if super_total_trades else 0
 
-    if ticker_rows:
-        tickers_df = pd.DataFrame(ticker_rows)
+    if ticker_rows or existing_df is not None:
+        combined_rows: list[dict[str, float | str]] = []
+        if existing_df is not None:
+            combined_rows.extend(existing_df.to_dict("records"))
+        combined_rows.extend(ticker_rows)
+
+        tickers_df = pd.DataFrame(combined_rows)
+        dup_cols = ["ticker"]
+        if "start_date" in tickers_df.columns:
+            dup_cols.append("start_date")
+        if "end_date" in tickers_df.columns:
+            dup_cols.append("end_date")
+        if "range" in tickers_df.columns:
+            dup_cols.append("range")
+        elif "open_range_minutes" in tickers_df.columns:
+            dup_cols.append("open_range_minutes")
+        tickers_df = tickers_df.drop_duplicates(subset=dup_cols, keep="last")
         raw_tickers_df = tickers_df.copy()
 
         surpass_df = (
@@ -347,11 +384,7 @@ def main() -> None:
         tickers_df = round_numeric_cols(tickers_df)
         tickers_df.to_csv(tickers_path, index=False)
 
-        ticker_root = Path("tickers")
-        dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{args.filter.replace(' ', '_')}"
-        dest_dir = ticker_root / dir_suffix
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest_file = dest_dir / f"{ticker_label}-{args.range}.csv"
         combined = round_numeric_cols(raw_tickers_df)
         combined.to_csv(dest_file, index=False)
 

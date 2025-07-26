@@ -228,7 +228,7 @@ def main() -> None:
     parser.add_argument(
         "--min-profit",
         type=float,
-        default=-1.0,
+        default=3.0,
         help="Minimum total profit to include ticker (default -1)",
     )
     parser.add_argument(
@@ -291,10 +291,10 @@ def main() -> None:
         df = pd.read_csv(lookback_csv)
 
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(6).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(10).tolist()
         )
         tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(6).tolist()
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(10).tolist()
         )
 
         success_col = (
@@ -304,7 +304,7 @@ def main() -> None:
             else None
         )
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(6).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(10).tolist()
             if success_col
             else []
         )
@@ -424,13 +424,15 @@ def main() -> None:
             trades_df = trades_df.drop(columns=["time"])
         for col in ["open", "close", "buy_price", "stop_price", "profit_price"]:
             if col in trades_df.columns:
-                trades_df[col] = trades_df[col].map(lambda x: f"${x:,.2f}")
+                trades_df[col] = trades_df[col].map(
+                    lambda x: f"${float(str(x).replace('$', '').replace(',', '')):,.2f}" if pd.notnull(x) and str(x).strip() != '' else ''
+                )
         for col in ["profit", "top_profit"]:
             if col in trades_df.columns:
                 trades_df[col] = trades_df[col].map(lambda x: f"{x:.2f}")
         for col in ["buy_time", "sell_time"]:
             if col in trades_df.columns:
-                trades_df[col] = pd.to_datetime(trades_df[col]).dt.strftime("%H:%M")
+                trades_df[col] = pd.to_datetime(trades_df[col], format="%Y-%m-%d %H:%M:%S", errors="coerce").dt.strftime("%H:%M")
         if "result" in trades_df.columns:
             trades_df = trades_df.rename(columns={"result": "profit_or_loss"})
         if tabulate:

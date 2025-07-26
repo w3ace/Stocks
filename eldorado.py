@@ -323,7 +323,15 @@ def main() -> None:
         avg_profit_day = (result_df["total_profit"].sum() / result_df["total_trades"].sum()) if result_df["total_trades"].sum() else 0.0
         avg_top_profit_day = (result_df["total_top_profit"].sum() / result_df["total_trades"].sum()) if result_df["total_trades"].sum()else 0.0
         
-        counts = trades_df["profit_or_loss"].value_counts() if "profit_or_loss" in trades_df.columns else pd.Series(dtype=int)
+        if "profit_or_loss" in trades_df.columns:
+            counts = trades_df["profit_or_loss"].value_counts()
+        elif "result" in trades_df.columns:
+            counts = trades_df["result"].value_counts()
+        else:
+            counts = pd.Series(dtype=int)
+
+        if not counts.empty:
+            counts.index = counts.index.str.lower()
         if(result_df["total_trades"].sum()):
             daily_stats.append(
                 {

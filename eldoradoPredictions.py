@@ -234,7 +234,7 @@ def main() -> None:
     parser.add_argument(
         "--min-profit",
         type=float,
-        default=3.0,
+        default=1.0,
         help="Minimum total profit to include ticker (default -1)",
     )
     parser.add_argument(
@@ -305,10 +305,10 @@ def main() -> None:
         df = pd.read_csv(lookback_csv)
 
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(10).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(6).tolist()
         )
         tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(10).tolist()
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(6).tolist()
         )
 
         success_col = (
@@ -317,11 +317,14 @@ def main() -> None:
             else "trade_success_pct" if "trade_success_pct" in df.columns
             else None
         )
+
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(10).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(6).tolist()
             if success_col
             else []
         )
+
+        print(tickers_success)
 
         tickers: list[str] = []
         for t in tickers_profit + tickers_top_profit + tickers_success:

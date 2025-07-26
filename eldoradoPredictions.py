@@ -2,6 +2,8 @@ import argparse
 import subprocess
 from datetime import datetime, timedelta, date
 from pathlib import Path
+from typing import Sequence
+from portfolio_utils import sanitize_ticker_string
 
 try:
     from tabulate import tabulate
@@ -166,11 +168,14 @@ def run_backtest(arguments: list[str]) -> tuple[Path, Path]:
     return tickers[0], trades[0]
 
 
-def ticker_summary_path(start: date, end: date, filter_str: str, rng: int) -> Path:
+def ticker_summary_path(
+    start: date, end: date, filter_str: str, rng: int, tickers: Sequence[str] | str
+) -> Path:
     """Return path to the combined ticker summary csv for the given arguments."""
 
     dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{filter_str.replace(' ', '_')}"
-    return Path("tickers") / dir_suffix / f"{rng}.csv"
+    ticker_label = sanitize_ticker_string(tickers)
+    return Path(ticker_label) / dir_suffix / f"{ticker_label}-{rng}.csv"
 
 
 def main() -> None:
@@ -281,6 +286,7 @@ def main() -> None:
             lookback_end,
             args.filter,
             args.range,
+            args.ticker_list,
         )
         df = pd.read_csv(lookback_csv)
 
@@ -342,6 +348,7 @@ def main() -> None:
             current,
             str(args.filter),
             args.range,
+            tickers,
         )
         result_df = pd.read_csv(result_csv)
         trades_df = pd.read_csv(trades_csv)

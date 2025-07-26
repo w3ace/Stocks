@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
+import re
 
 
 def expand_ticker_args(ticker_args: Iterable[str]) -> list[str]:
@@ -41,3 +42,13 @@ def expand_ticker_args(ticker_args: Iterable[str]) -> list[str]:
             print(f"Portfolio file not found: {path}")
 
     return result
+
+
+def sanitize_ticker_string(tickers: Sequence[str] | str) -> str:
+    """Return combined *tickers* string stripped of spaces and special characters."""
+
+    if isinstance(tickers, str):
+        combined = tickers
+    else:
+        combined = "".join(tickers)
+    return re.sub(r"[^A-Za-z0-9]", "", combined)

@@ -175,7 +175,7 @@ def ticker_summary_path(
 
     dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{filter_str.replace(' ', '_')}"
     ticker_label = sanitize_ticker_string(tickers)
-    return Path(ticker_label) / dir_suffix / f"{ticker_label}-{rng}.csv"
+    return Path("tickers") / dir_suffix / f"{ticker_label}-{rng}.csv"
 
 
 def main() -> None:
@@ -275,11 +275,11 @@ def main() -> None:
             "--min-profit",
             str(args.min_profit),
             *args.ticker_list,
-            *(
-                ["--console-out", args.console_out]
-                if args.console_out and args.console_out != "none"
-                else []
-            ),
+  #          *(
+   #             ["--console-out", args.console_out]
+    #            if args.console_out and args.console_out != "none"
+     #           else []
+      #      ),
         ])
         lookback_csv = ticker_summary_path(
             lookback_start,
@@ -348,7 +348,7 @@ def main() -> None:
             current,
             str(args.filter),
             args.range,
-            args.ticker_list,
+            tickers,
         )
         result_df = pd.read_csv(result_csv)
         trades_df = pd.read_csv(trades_csv)

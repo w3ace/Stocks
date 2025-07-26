@@ -339,7 +339,7 @@ def main() -> None:
         tickers_df = round_numeric_cols(tickers_df)
         tickers_df.to_csv(tickers_path, index=False)
 
-        ticker_root = Path(ticker_label)
+        ticker_root = Path("tickers")
         dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{args.filter.replace(' ', '_')}"
         dest_dir = ticker_root / dir_suffix
         dest_dir.mkdir(parents=True, exist_ok=True)

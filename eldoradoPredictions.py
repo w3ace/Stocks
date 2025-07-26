@@ -166,6 +166,13 @@ def run_backtest(arguments: list[str]) -> tuple[Path, Path]:
     return tickers[0], trades[0]
 
 
+def ticker_summary_path(start: date, end: date, filter_str: str, rng: int) -> Path:
+    """Return path to the combined ticker summary csv for the given arguments."""
+
+    dir_suffix = f"{start.strftime('%m-%d-%Y')}-{end.strftime('%m-%d-%Y')}-{filter_str.replace(' ', '_')}"
+    return Path("tickers") / dir_suffix / f"{rng}.csv"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Predictive backtest runner")
     parser.add_argument("--start", required=True, help="Start date YYYY-MM-DD")
@@ -247,7 +254,7 @@ def main() -> None:
         lookback_end = current - timedelta(days=1)
 
         # Run backtest on the lookback period to select tickers
-        csv_path, _ = run_backtest([
+        run_backtest([
             "--end",
             lookback_end.strftime("%Y-%m-%d"),
             "--start",
@@ -269,8 +276,13 @@ def main() -> None:
                 else []
             ),
         ])
-
-        df = pd.read_csv(csv_path)
+        lookback_csv = ticker_summary_path(
+            lookback_start,
+            lookback_end,
+            args.filter,
+            args.range,
+        )
+        df = pd.read_csv(lookback_csv)
 
         tickers_top_profit = (
             df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(6).tolist()
@@ -303,7 +315,7 @@ def main() -> None:
         ticker_history.append(tickers)
 
         # Run backtest for the current day using selected tickers
-        result_csv, trades_csv = run_backtest([
+        _, trades_csv = run_backtest([
             "--end",
             current.strftime("%Y-%m-%d"),
             "--start",
@@ -325,7 +337,12 @@ def main() -> None:
                 else []
             ),
         ])
-
+        result_csv = ticker_summary_path(
+            current,
+            current,
+            str(args.filter),
+            args.range,
+        )
         result_df = pd.read_csv(result_csv)
         trades_df = pd.read_csv(trades_csv)
         if "trades" in args.console_out.split():

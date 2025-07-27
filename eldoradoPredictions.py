@@ -147,7 +147,7 @@ def plot_daily_results(
         fig.legend(
             handles=summary_handles,
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.1),
+            bbox_to_anchor=(0.5, -0.12),
             frameon=False,
             fontsize="small",
         )
@@ -155,7 +155,8 @@ def plot_daily_results(
     ax1.set_xticks(list(x))
     ax1.set_xticklabels([d.strftime("%Y-%m-%d") for d in df.index], rotation=45)
 
-    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    # leave extra bottom space for the summary legend
+    fig.tight_layout(rect=(0, 0.18, 1, 1))
     if save_path:
         plt.savefig(save_path)
     plt.show()

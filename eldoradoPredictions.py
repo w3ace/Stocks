@@ -425,12 +425,6 @@ def main() -> None:
     avg_profit = total_profit / total_trades if total_trades else 0.0
     avg_top_profit = total_top_profit / total_trades if total_trades else 0.0
 
-    print("Total Trades:", total_trades)
-    print("Total Profit:", f"{total_profit:.2f}")
-    print("Total Top Profit:", f"{total_top_profit:.2f}")
-    print("Avg Profit:", f"{avg_profit:.2f}")
-    print("Avg Top Profit:", f"{avg_top_profit:.2f}")
-
     summary_lines = [
         f"Total Trades: {total_trades}",
         f"Total Profit: {total_profit:.2f}",
@@ -438,6 +432,7 @@ def main() -> None:
         f"Avg Profit: {avg_profit:.2f}",
         f"Avg Top Profit: {avg_top_profit:.2f}",
     ]
+
     if "tickers" in args.console_out.split():
         print("Ticker List:")
         for i, tick_list in enumerate(ticker_history, start=1):
@@ -483,6 +478,8 @@ def main() -> None:
             print(tabulate(trades_df, headers="keys", tablefmt="grid", showindex=False))
         else:
             print(trades_df.to_string(index=False))
+
+    print(summary_lines)
 
     if daily_stats:
         plot_df = pd.DataFrame(daily_stats).set_index("date")

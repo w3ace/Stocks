@@ -63,7 +63,11 @@ def is_trading_day(day: date) -> bool:
     return pd.Timestamp(day) not in holidays
 
 
-def plot_daily_results(df: pd.DataFrame, save_path: Path | None = None) -> None:
+def plot_daily_results(
+    df: pd.DataFrame,
+    save_path: Path | None = None,
+    summary_lines: Sequence[str] | None = None,
+) -> None:
     """Plot daily average profit and trade counts similar to eldoradoBacktest.
 
     If *save_path* is provided the chart will be written to that location in
@@ -138,10 +142,20 @@ def plot_daily_results(df: pd.DataFrame, save_path: Path | None = None) -> None:
     labels = [l.get_label() for l in lines]
     ax1.legend(lines, labels, loc="upper left")
 
+    if summary_lines:
+        summary_handles = [plt.Line2D([], [], color="none", label=s) for s in summary_lines]
+        fig.legend(
+            handles=summary_handles,
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.1),
+            frameon=False,
+            fontsize="small",
+        )
+
     ax1.set_xticks(list(x))
     ax1.set_xticklabels([d.strftime("%Y-%m-%d") for d in df.index], rotation=45)
 
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
     if save_path:
         plt.savefig(save_path)
     plt.show()
@@ -416,6 +430,14 @@ def main() -> None:
     print("Total Top Profit:", f"{total_top_profit:.2f}")
     print("Avg Profit:", f"{avg_profit:.2f}")
     print("Avg Top Profit:", f"{avg_top_profit:.2f}")
+
+    summary_lines = [
+        f"Total Trades: {total_trades}",
+        f"Total Profit: {total_profit:.2f}",
+        f"Total Top Profit: {total_top_profit:.2f}",
+        f"Avg Profit: {avg_profit:.2f}",
+        f"Avg Top Profit: {avg_top_profit:.2f}",
+    ]
     if "tickers" in args.console_out.split():
         print("Ticker List:")
         for i, tick_list in enumerate(ticker_history, start=1):
@@ -464,7 +486,7 @@ def main() -> None:
 
     if daily_stats:
         plot_df = pd.DataFrame(daily_stats).set_index("date")
-        plot_daily_results(plot_df, chart_path)
+        plot_daily_results(plot_df, chart_path, summary_lines)
 
 
 if __name__ == "__main__":

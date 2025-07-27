@@ -171,7 +171,7 @@ def analyze_open_range(
         pd.Timestamp("09:30") + timedelta(minutes=open_range_minutes)
     ).strftime("%H:%M")
     after_settlement = (
-        pd.Timestamp(open_end) + timedelta(minutes=5)
+        pd.Timestamp(open_end) # + timedelta(minutes=5)
     ).strftime("%H:%M")
 
     prev_close = None
@@ -246,7 +246,7 @@ def analyze_open_range(
                 {
                     "date": pd.to_datetime(date),
                     "time": after_or_time,
-                    "open": float(open_price),
+                    "open": float(open_price), 
                     "close": float(close_price),
                     "or_low": float(or_low),
                     "or_high": float(or_high),

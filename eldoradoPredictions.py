@@ -298,7 +298,7 @@ def main() -> None:
                 "--filter",
                 args.filter,
                 "--min-profit",
-                str(args.min_profit),
+                str(args.sample/7),
                 *args.ticker_list,
                 # *(
                 #     ["--console-out", args.console_out]
@@ -310,10 +310,10 @@ def main() -> None:
         df = pd.read_csv(lookback_csv)
 
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(6).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(5).tolist()
         )
         tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(6).tolist()
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(5).tolist()
         )
 
         success_col = (
@@ -324,7 +324,7 @@ def main() -> None:
         )
 
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(6).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(5).tolist()
             if success_col
             else []
         )

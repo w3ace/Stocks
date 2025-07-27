@@ -153,16 +153,16 @@ def main() -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_file = dest_dir / f"{ticker_label}-{args.range}.csv"
     existing_df: pd.DataFrame | None = None
-    if dest_file.is_file():
-        try:
-            existing_df = pd.read_csv(dest_file)
-            processed = set(existing_df.get("ticker", []).astype(str).str.upper())
-            tickers = [t for t in tickers if t.upper() not in processed]
-            if not tickers:
-                print(f"All tickers already processed in {dest_file}")
-        except Exception as e:
-            print(f"Failed to read existing ticker data {dest_file}: {e}")
-            existing_df = None
+#    if dest_file.is_file():
+#        try:
+#            existing_df = pd.read_csv(dest_file)
+#            processed = set(existing_df.get("ticker", []).astype(str).str.upper())
+#            tickers = [t for t in tickers if t.upper() not in processed]
+#            if not tickers:
+#                print(f"All tickers already processed in {dest_file}")
+#        except Exception as e:
+#            print(f"Failed to read existing ticker data {dest_file}: {e}")
+#            existing_df = None
 
     for ticker in tickers:
         interval = args.interval or choose_yfinance_interval(start=start, end=end)

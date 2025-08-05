@@ -34,7 +34,7 @@ def backtest_pattern(
 ) -> list[dict[str, float | pd.Timestamp]]:
     """Return detailed trades meeting the selected Taygetus pattern."""
     trades: list[dict[str, float | pd.Timestamp]] = []
-    for i in range(3, len(df)):
+    for i in range(4, len(df)):
         day1 = df.iloc[i - 3]
         day2 = df.iloc[i - 2]
         day3 = df.iloc[i - 1]
@@ -46,7 +46,7 @@ def backtest_pattern(
                 day1["Close"] > day1["Open"]
                 and day2["Close"] > day2["Open"]
                 and day3["Open"] > day2["Close"]
-                and day3["Close"] > day2["Open"]
+                and day3["Close"] < day2["Open"]
             ):
                 entry_price = day3["Close"]
                 exit_price = day4["Open"]

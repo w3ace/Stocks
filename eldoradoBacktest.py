@@ -85,7 +85,8 @@ def main() -> None:
         default="",
         help=(
             "Space separated options to print to console. "
-            "Use 'trades' to show all trades and 'tickers' for the per-ticker summary"
+            "Use 'trades' to show all trades, 'tickers' for the per-ticker summary, "
+            "or 'buys' to display today's entries when --end is today"
         ),
     )
     parser.add_argument(
@@ -110,6 +111,7 @@ def main() -> None:
     all_trades: list[dict[str, float | str | pd.Timestamp]] = []
     ticker_rows: list[dict[str, float | str]] = []
     surpass_tickers: list[str] = []
+    buy_rows: list[dict[str, float | str | pd.Timestamp]] = []
 
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
@@ -133,6 +135,9 @@ def main() -> None:
             end = start + pd.Timedelta(days=1)
         else:
             start = end = now.normalize()
+
+    today = pd.Timestamp.now(tz="US/Eastern").normalize()
+    is_today = end.normalize() == today
 
     chart_dir = Path("eldoradoCharts") / (
         f"backtest-{start.strftime('%m-%d-%Y')}-"
@@ -239,6 +244,18 @@ def main() -> None:
             trade = item.copy()
             trade["ticker"] = ticker
             all_trades.append(trade)
+            if is_today and "buys" in args.console_out.split():
+                trade_date = pd.to_datetime(item["date"]).normalize()
+                if trade_date == today:
+                    buy_rows.append(
+                        {
+                            "ticker": ticker,
+                            "buy_time": pd.to_datetime(item["buy_time"]).strftime("%H:%M"),
+                            "buy_price": float(item["buy_price"]),
+                            "stop_price": float(item["stop_price"]),
+                            "profit_price": float(item["profit_price"]),
+                        }
+                    )
 
   #      time.sleep(0.1)
 
@@ -410,6 +427,14 @@ def main() -> None:
                 "Tickers surpassing min profit by success percentage:",
                 " ".join(surpass_by_success),
             )
+
+    if is_today and "buys" in args.console_out.split() and buy_rows:
+        buys_df = pd.DataFrame(buy_rows)
+        buys_df = round_numeric_cols(buys_df)
+        if tabulate:
+            print(tabulate(buys_df, headers="keys", tablefmt="grid", showindex=False))
+        else:
+            print(buys_df.to_string(index=False))
 
     print("Total Trades:", super_total_trades)
     print("Total Profit:", f"{super_total_profit:.3f}")

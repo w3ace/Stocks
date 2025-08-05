@@ -1,4 +1,6 @@
 import argparse
+from pathlib import Path
+
 import pandas as pd
 import yfinance as yf
 from stock_functions import period_to_start_end, round_numeric_cols
@@ -126,21 +128,19 @@ def main() -> None:
         wins = sum(1 for t in trades if t['gain_loss_pct'] > 0)
         win_pct = wins / count * 100 if count else 0.0
         loss_pct = (count - wins) / count * 100 if count else 0.0
-        if args.console_out == 'tickers':
-            if count:  # filter out tickers with zero trades
-                rows.append(
-                    {
-                        'ticker': ticker,
-                        'trades': count,
-                        'win_pct': win_pct,
-                        'loss_pct': loss_pct,
-                        'avg_gain_loss': avg,
-                    }
-                )
-        elif args.console_out == 'trades':
-            for trade in trades:
-                trade_rows.append({'ticker': ticker, **trade})
-        else:
+        if count:
+            rows.append(
+                {
+                    'ticker': ticker,
+                    'trades': count,
+                    'win_pct': win_pct,
+                    'loss_pct': loss_pct,
+                    'avg_gain_loss': avg,
+                }
+            )
+        for trade in trades:
+            trade_rows.append({'ticker': ticker, **trade})
+        if args.console_out not in ('tickers', 'trades'):
             print(
                 f"{ticker}: Trades {count}, Win {win_pct:.2f}%, Loss {loss_pct:.2f}%, Average Gain/Loss {avg:.2f}%"
             )
@@ -148,22 +148,47 @@ def main() -> None:
         total_return += sum(t['gain_loss_pct'] for t in trades)
         total_wins += wins
 
-    if args.console_out == 'tickers' and rows:
-        df = pd.DataFrame(rows)
-        df = df.sort_values(by='avg_gain_loss', ascending=False)
-        df = round_numeric_cols(df)
-        df = df.head(args.max_out)
-        if tabulate:
-            print(tabulate(df, headers='keys', tablefmt='grid', showindex=False))
-        else:
-            print(df.to_string(index=False))
-    elif args.console_out == 'trades' and trade_rows:
-        trades_df = pd.DataFrame(trade_rows)
-        trades_df = round_numeric_cols(trades_df)
+    start_label = start.strftime('%Y-%m-%d')
+    end_label = end.strftime('%Y-%m-%d')
+    file_label = f"{start_label}-{end_label}-{args.filter}.csv"
+    trades_dir = Path('trades') / 'taygetus'
+    tickers_dir = Path('tickers') / 'taygetus'
+    trades_dir.mkdir(parents=True, exist_ok=True)
+    tickers_dir.mkdir(parents=True, exist_ok=True)
+    trades_path = trades_dir / file_label
+    tickers_path = tickers_dir / file_label
+
+    trades_df = pd.DataFrame(trade_rows)
+    trades_df = round_numeric_cols(trades_df)
+    trades_df.to_csv(trades_path, index=False)
+    if args.console_out == 'trades' and not trades_df.empty:
         if tabulate:
             print(tabulate(trades_df, headers='keys', tablefmt='grid', showindex=False))
         else:
             print(trades_df.to_string(index=False))
+    elif args.console_out == 'trades':
+        print('No trades to display')
+    print(f'Trades saved to {trades_path}')
+
+    tickers_df = pd.DataFrame(
+        rows,
+        columns=['ticker', 'trades', 'win_pct', 'loss_pct', 'avg_gain_loss']
+    )
+    if not tickers_df.empty:
+        tickers_df = tickers_df.sort_values(by='avg_gain_loss', ascending=False)
+        tickers_df = round_numeric_cols(tickers_df)
+        tickers_df.to_csv(tickers_path, index=False)
+        if args.console_out == 'tickers':
+            display_df = tickers_df.head(args.max_out)
+            if tabulate:
+                print(tabulate(display_df, headers='keys', tablefmt='grid', showindex=False))
+            else:
+                print(display_df.to_string(index=False))
+    else:
+        tickers_df.to_csv(tickers_path, index=False)
+        if args.console_out == 'tickers':
+            print('No tickers to display')
+    print(f'Ticker summary saved to {tickers_path}')
 
     if total_trades:
         overall = total_return / total_trades

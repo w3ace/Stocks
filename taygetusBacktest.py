@@ -1,8 +1,13 @@
 import argparse
 import pandas as pd
 import yfinance as yf
-from stock_functions import period_to_start_end
+from stock_functions import period_to_start_end, round_numeric_cols
 from portfolio_utils import expand_ticker_args
+
+try:
+    from tabulate import tabulate
+except ImportError:  # pragma: no cover - optional dependency
+    tabulate = None
 
 
 def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
@@ -53,6 +58,17 @@ def main() -> None:
     group.add_argument('--period', help='yfinance period string (e.g. 1y, 6mo)')
     group.add_argument('--start', help='Start date YYYY-MM-DD')
     parser.add_argument('--end', help='End date YYYY-MM-DD')
+    parser.add_argument(
+        '--console-out',
+        choices=['tickers'],
+        help='Print per-ticker summary to console in an ASCII table',
+    )
+    parser.add_argument(
+        '--max-out',
+        type=int,
+        default=40,
+        help='Maximum tickers to display with --console-out tickers (default 40)',
+    )
     args = parser.parse_args()
 
     tickers = expand_ticker_args(args.ticker)
@@ -65,6 +81,7 @@ def main() -> None:
 
     total_trades = 0
     total_return = 0.0
+    rows: list[dict[str, float | int | str]] = []
 
     for ticker in tickers:
         df = fetch_daily_data(ticker, start, end)
@@ -74,9 +91,35 @@ def main() -> None:
         trades = backtest_pattern(df)
         count = len(trades)
         avg = sum(trades) / count if count else 0.0
-        print(f"{ticker}: Trades {count}, Average Gain/Loss {avg:.2f}%")
+        wins = sum(1 for t in trades if t > 0)
+        win_pct = wins / count * 100 if count else 0.0
+        loss_pct = (count - wins) / count * 100 if count else 0.0
+        if args.console_out == 'tickers':
+            rows.append(
+                {
+                    'ticker': ticker,
+                    'trades': count,
+                    'win_pct': win_pct,
+                    'loss_pct': loss_pct,
+                    'avg_gain_loss': avg,
+                }
+            )
+        else:
+            print(
+                f"{ticker}: Trades {count}, Win {win_pct:.2f}%, Loss {loss_pct:.2f}%, Average Gain/Loss {avg:.2f}%"
+            )
         total_trades += count
         total_return += sum(trades)
+
+    if args.console_out == 'tickers' and rows:
+        df = pd.DataFrame(rows)
+        df = df.sort_values(by='avg_gain_loss', ascending=False)
+        df = round_numeric_cols(df)
+        df = df.head(args.max_out)
+        if tabulate:
+            print(tabulate(df, headers='keys', tablefmt='grid', showindex=False))
+        else:
+            print(df.to_string(index=False))
 
     if total_trades:
         overall = total_return / total_trades

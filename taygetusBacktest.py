@@ -12,16 +12,54 @@ except ImportError:  # pragma: no cover - optional dependency
     tabulate = None
 
 
-def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    """Download daily price data for *ticker* between *start* and *end*."""
-    data = yf.download(
-        ticker,
-        start=start,
-        end=end,
-        interval="1d",
-        auto_adjust=True,
-        progress=False,
+CACHE_DIR = Path(__file__).resolve().parent / "yfinance_cache" / "taygetus"
+
+
+def fetch_daily_data(
+    ticker: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    cache_tag: str,
+) -> pd.DataFrame:
+    """Download daily price data for *ticker* between *start* and *end*.
+
+    The raw *yfinance* response is cached under ``CACHE_DIR/cache_tag`` grouped by
+    the first letter of ``ticker``. Caching is disabled if the requested range
+    includes the current trading day and it is before 4:30pm US/Eastern.
+    """
+
+    now_est = pd.Timestamp.now(tz="US/Eastern")
+    four_thirty = pd.Timestamp("16:30", tz="US/Eastern").time()
+    start_date = pd.to_datetime(start).date()
+    end_date = pd.to_datetime(end).date()
+
+    cache_enabled = not (
+        start_date <= now_est.date() < end_date and now_est.time() < four_thirty
     )
+
+    cache_file = CACHE_DIR / cache_tag / ticker[0].upper() / ticker
+
+    if cache_enabled and cache_file.exists():
+        try:
+            data = pd.read_pickle(cache_file)
+        except Exception:
+            data = pd.DataFrame()
+    else:
+        data = yf.download(
+            ticker,
+            start=start,
+            end=end,
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+        )
+        if cache_enabled and not data.empty:
+            try:
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                data.to_pickle(cache_file)
+            except Exception:
+                pass
+
     if data.empty:
         return data
     if isinstance(data.columns, pd.MultiIndex):
@@ -148,6 +186,7 @@ def main() -> None:
 
     original_start = start
     original_end = end
+    cache_tag = f"{original_start.date()}_{original_end.date()}_{args.filter}"
 
     fetch_start = start - pd.Timedelta(days=pattern_length)
     fetch_end = end + pd.Timedelta(days=1)
@@ -161,7 +200,7 @@ def main() -> None:
     is_today_end = original_end.normalize() == pd.Timestamp.now().normalize()
 
     for ticker in tickers:
-        df = fetch_daily_data(ticker, fetch_start, fetch_end)
+        df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag)
         if df.empty:
             print(f"No data for {ticker}")
             continue

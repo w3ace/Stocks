@@ -29,8 +29,10 @@ def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.
     return data
 
 
-def backtest_pattern(df: pd.DataFrame) -> list[dict[str, float | pd.Timestamp]]:
-    """Return detailed trades meeting the Taygetus pattern."""
+def backtest_pattern(
+    df: pd.DataFrame, filter_value: str
+) -> list[dict[str, float | pd.Timestamp]]:
+    """Return detailed trades meeting the selected Taygetus pattern."""
     trades: list[dict[str, float | pd.Timestamp]] = []
     for i in range(3, len(df)):
         day1 = df.iloc[i - 3]
@@ -38,24 +40,34 @@ def backtest_pattern(df: pd.DataFrame) -> list[dict[str, float | pd.Timestamp]]:
         day3 = df.iloc[i - 1]
         day4 = df.iloc[i]
 
-        if (
-            day1['Close'] > day1['Open']
-            and day2['Close'] > day2['Open']
-            and day3['Open'] > day2['Close']
-            and day3['Close'] > day2['Open']
-        ):
-            entry_price = day3['Close']
-            exit_price = day4['Open']
+        entry_price = exit_price = None
+        if filter_value == "3E":
+            if (
+                day1["Close"] > day1["Open"]
+                and day2["Close"] > day2["Open"]
+                and day3["Open"] > day2["Close"]
+                and day3["Close"] > day2["Open"]
+            ):
+                entry_price = day3["Close"]
+                exit_price = day4["Open"]
+        elif filter_value == "3D":
+            if day1["Close"] > day2["Close"] > day3["Close"]:
+                entry_price = day3["Close"]
+                exit_price = day4["Open"]
+        else:
+            continue
+
+        if entry_price is not None and exit_price is not None:
             gain_loss = exit_price - entry_price
             gain_loss_pct = gain_loss / entry_price * 100
             trades.append(
                 {
-                    'entry_day': day3['Date'].date(),
-                    'exit_day': day4['Date'].date(),
-                    'entry_price': entry_price,
-                    'exit_price': exit_price,
-                    'gain_loss': gain_loss,
-                    'gain_loss_pct': gain_loss_pct,
+                    "entry_day": day3["Date"].date(),
+                    "exit_day": day4["Date"].date(),
+                    "entry_price": entry_price,
+                    "exit_price": exit_price,
+                    "gain_loss": gain_loss,
+                    "gain_loss_pct": gain_loss_pct,
                 }
             )
     return trades
@@ -72,6 +84,12 @@ def main() -> None:
         '--console-out',
         choices=['tickers', 'trades'],
         help='Print per-ticker or per-trade summary to console in an ASCII table',
+    )
+    parser.add_argument(
+        '--filter',
+        choices=['3E', '3D'],
+        default='3E',
+        help='Pattern filter: 3E current Taygetus, 3D descending closes',
     )
     parser.add_argument(
         '--max-out',
@@ -100,7 +118,7 @@ def main() -> None:
         if df.empty:
             print(f"No data for {ticker}")
             continue
-        trades = backtest_pattern(df)
+        trades = backtest_pattern(df, args.filter)
         count = len(trades)
         avg = (
             sum(t['gain_loss_pct'] for t in trades) / count if count else 0.0

@@ -119,6 +119,11 @@ def main() -> None:
         end = pd.to_datetime(args.end) if args.end else pd.Timestamp.now()
     else:
         start, end = period_to_start_end(args.period or '1y')
+        start = pd.to_datetime(start)
+        end = pd.to_datetime(end)
+
+    original_end = end
+    end += pd.Timedelta(days=1)
 
     total_trades = 0
     total_return = 0.0
@@ -160,7 +165,7 @@ def main() -> None:
         total_wins += wins
 
     start_label = start.strftime('%Y-%m-%d')
-    end_label = end.strftime('%Y-%m-%d')
+    end_label = original_end.strftime('%Y-%m-%d')
     file_label = f"{start_label}-{end_label}-{args.filter}.csv"
     trades_dir = Path('trades') / 'taygetus'
     tickers_dir = Path('tickers') / 'taygetus'

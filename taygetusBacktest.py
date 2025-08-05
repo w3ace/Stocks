@@ -34,7 +34,15 @@ def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.
 def backtest_pattern(
     df: pd.DataFrame, filter_value: str
 ) -> list[dict[str, float | pd.Timestamp]]:
-    """Return detailed trades meeting the selected Taygetus pattern."""
+    """Return detailed trades meeting the selected Taygetus pattern.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Daily price data.
+    filter_value : str
+        One of ``"3E"``, ``"3EC"``, ``"3D"`` or ``"3DC"``.
+    """
     trades: list[dict[str, float | pd.Timestamp]] = []
     for i in range(4, len(df)):
         day1 = df.iloc[i - 3]
@@ -43,7 +51,7 @@ def backtest_pattern(
         day4 = df.iloc[i]
 
         entry_price = exit_price = None
-        if filter_value == "3E":
+        if filter_value in {"3E", "3EC"}:
             if (
                 day1["Close"] > day1["Open"]
                 and day2["Close"] > day2["Open"]
@@ -51,11 +59,11 @@ def backtest_pattern(
                 and day3["Close"] < day2["Open"]
             ):
                 entry_price = day3["Close"]
-                exit_price = day4["Open"]
-        elif filter_value == "3D":
+                exit_price = day4["Close" if filter_value == "3EC" else "Open"]
+        elif filter_value in {"3D", "3DC"}:
             if day1["Close"] > day2["Close"] > day3["Close"]:
                 entry_price = day3["Close"]
-                exit_price = day4["Open"]
+                exit_price = day4["Close" if filter_value == "3DC" else "Open"]
         else:
             continue
 
@@ -89,9 +97,12 @@ def main() -> None:
     )
     parser.add_argument(
         '--filter',
-        choices=['3E', '3D'],
+        choices=['3E', '3EC', '3D', '3DC'],
         default='3E',
-        help='Pattern filter: 3E current Taygetus, 3D descending closes',
+        help=(
+            'Pattern filter: 3E current Taygetus, 3EC exit at Day4 Close, '
+            '3D descending closes, 3DC exit at Day4 Close'
+        ),
     )
     parser.add_argument(
         '--max-out',

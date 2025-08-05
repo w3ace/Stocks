@@ -257,6 +257,12 @@ def main() -> None:
         default="none",
         help="Space separated options to print to console (tickers, trades)",
     )
+    parser.add_argument(
+        "--max-out",
+        type=int,
+        default=40,
+        help="Maximum tickers to display with --console-out tickers (default 40)",
+    )
     args = parser.parse_args()
 
     start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
@@ -275,7 +281,7 @@ def main() -> None:
     total_profit = 0.0
     total_top_profit = 0.0
     day_count = 0
-    ticker_history: list[list[str]] = []
+    ticker_stats: dict[str, dict[str, float]] = {}
     daily_stats: list[dict[str, float | int | datetime]] = []
     all_trades: list[pd.DataFrame] = []
 
@@ -355,8 +361,6 @@ def main() -> None:
             current += timedelta(days=1)
             continue
 
-        ticker_history.append(tickers)
-
         # Run eldoradoBacktest for the current day using selected tickers
         _, trades_csv = run_backtest([
             "--end",
@@ -391,6 +395,23 @@ def main() -> None:
         trades_df = pd.read_csv(trades_csv)
         if "trades" in args.console_out.split():
             all_trades.append(trades_df)
+
+        for _, row in result_df.iterrows():
+            ticker = str(row.get("ticker", "")).upper()
+            trades = float(row.get("total_trades", 0))
+            profit = float(row.get("total_profit", 0.0))
+            if "trade_success_pct" in row:
+                success_pct = float(row["trade_success_pct"])
+            elif "trade_success_rate" in row:
+                success_pct = float(row["trade_success_rate"]) * 100
+            else:
+                success_pct = 0.0
+            stats = ticker_stats.setdefault(
+                ticker, {"trades": 0.0, "successes": 0.0, "profit": 0.0}
+            )
+            stats["trades"] += trades
+            stats["successes"] += trades * success_pct / 100
+            stats["profit"] += profit
 
         total_trades += result_df["total_trades"].sum()
         total_profit += result_df["total_profit"].sum()
@@ -434,10 +455,29 @@ def main() -> None:
         f"Avg Top Profit: {avg_top_profit:.2f}",
     ]
 
-    if "tickers" in args.console_out.split():
-        print("Ticker List:")
-        for i, tick_list in enumerate(ticker_history, start=1):
-            print(f"Day {i}: {' '.join(tick_list)}")
+    if "tickers" in args.console_out.split() and ticker_stats:
+        rows: list[dict[str, float | str | int]] = []
+        for ticker, stats in ticker_stats.items():
+            trades = stats["trades"]
+            win_pct = (stats["successes"] / trades * 100) if trades else 0.0
+            avg_gain = (stats["profit"] / trades) if trades else 0.0
+            rows.append(
+                {
+                    "ticker": ticker,
+                    "trades": int(trades),
+                    "win_loss_pct": win_pct,
+                    "avg_gain_loss": avg_gain,
+                }
+            )
+        ticker_df = pd.DataFrame(rows)
+        ticker_df = ticker_df.sort_values(by="avg_gain_loss", ascending=False)
+        ticker_df = ticker_df.head(args.max_out)
+        for col in ["win_loss_pct", "avg_gain_loss"]:
+            ticker_df[col] = ticker_df[col].map(lambda x: f"{x:.2f}")
+        if tabulate:
+            print(tabulate(ticker_df, headers="keys", tablefmt="grid", showindex=False))
+        else:
+            print(ticker_df.to_string(index=False))
 
     if "trades" in args.console_out.split() and all_trades:
         trades_df = pd.concat(all_trades, ignore_index=True)

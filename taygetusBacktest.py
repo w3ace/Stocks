@@ -91,6 +91,7 @@ def main() -> None:
 
     total_trades = 0
     total_return = 0.0
+    total_wins = 0
     rows: list[dict[str, float | int | str]] = []
     trade_rows: list[dict[str, float | str | pd.Timestamp]] = []
 
@@ -126,6 +127,7 @@ def main() -> None:
             )
         total_trades += count
         total_return += sum(t['gain_loss_pct'] for t in trades)
+        total_wins += wins
 
     if args.console_out == 'tickers' and rows:
         df = pd.DataFrame(rows)
@@ -146,7 +148,11 @@ def main() -> None:
 
     if total_trades:
         overall = total_return / total_trades
-        print(f"Overall: Trades {total_trades}, Average Gain/Loss {overall:.2f}%")
+        success_rate = total_wins / total_trades * 100
+        print(
+            f"Overall: Trades {total_trades}, Success Rate {success_rate:.2f}%, "
+            f"Average Gain/Loss {overall:.2f}%"
+        )
     else:
         print("No trades found across tickers")
 

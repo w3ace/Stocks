@@ -118,10 +118,24 @@ def backtest_pattern(
             ):
                 entry_price = days["day2"]["Close"]
                 exit_price = days["day1"]["Close" if filter_value == "3EC" else "Open"]
+        elif filter_value in {"4E", "4EC"}:
+            if (
+                days["day5"]["Close"] > days["day5"]["Open"]
+                and days["day4"]["Close"] > days["day4"]["Open"]
+                and days["day3"]["Close"] > days["day3"]["Open"]
+                and days["day2"]["Open"] > days["day3"]["Close"]
+                and days["day2"]["Close"] < days["day3"]["Open"]
+            ):
+                entry_price = days["day2"]["Close"]
+                exit_price = days["day1"]["Close" if filter_value == "4EC" else "Open"]
         elif filter_value in {"3D", "3DC"}:
             if days["day4"]["Close"] > days["day3"]["Close"] > days["day2"]["Close"]:
                 entry_price = days["day2"]["Close"]
                 exit_price = days["day1"]["Close" if filter_value == "3DC" else "Open"]
+        elif filter_value in {"4D", "4DC"}:
+            if days["day5"]["Close"] > days["day4"]["Close"] > days["day3"]["Close"] > days["day2"]["Close"]:
+                entry_price = days["day2"]["Close"]
+                exit_price = days["day1"]["Close" if filter_value == "4DC" else "Open"]
         else:
             continue
 
@@ -155,7 +169,7 @@ def main() -> None:
     )
     parser.add_argument(
         '--filter',
-        choices=['3E', '3EC', '3D', '3DC'],
+        choices=['3E', '4E', '3EC', '4EC', '3D', '4D', '3DC', '4DC'],
         default='3E',
         help=(
             'Pattern filter: 3E current Taygetus, 3EC exit at Day4 Close, '
@@ -186,7 +200,7 @@ def main() -> None:
 
     original_start = start
     original_end = end
-    cache_tag = f"{original_start.date()}_{original_end.date()}_{args.filter}"
+    cache_tag = f"{original_start.date()}_{original_end.date()}"
 
     fetch_start = start - pd.Timedelta(days=pattern_length)
     fetch_end = end + pd.Timedelta(days=1)
@@ -258,12 +272,30 @@ def main() -> None:
                         and days["day2"]["Close"] < days["day3"]["Open"]
                     ):
                         match = True
+                elif args.filter in {"4E", "4EC"}:
+                    if (
+                        days["day5"]["Close"] > days["day5"]["Open"]
+                        and days["day4"]["Close"] > days["day4"]["Open"]
+                        and days["day3"]["Close"] > days["day3"]["Open"]
+                        and days["day2"]["Open"] > days["day3"]["Close"]
+                        and days["day2"]["Close"] < days["day3"]["Open"]
+                    ):
+                        match = True
                 elif args.filter in {"3D", "3DC"}:
                     if (
                         days["day4"]["Close"]
                         > days["day3"]["Close"]
                         > days["day2"]["Close"]
                     ):
+                        match = True
+                elif args.filter in {"4D", "4DC"}:
+                    if (
+                        days["day5"]["Close"]
+                        > days["day4"]["Close"]
+                        > days["day3"]["Close"]
+                        > days["day2"]["Close"]
+                    ):
+                        print(days["day5"]["Close"])
                         match = True
                 if match:
                     price = fetch_current_price(ticker)
@@ -302,7 +334,7 @@ def main() -> None:
         tickers_df.to_csv(tickers_path, index=False)
         if args.console_out == 'tickers':
             display_df = tickers_df[
-                (tickers_df['win_pct'] > 50) & (tickers_df['exec_pct'] > 3)
+                (tickers_df['win_pct'] > 30) & (tickers_df['exec_pct'] > 2)
             ].head(args.max_out)
             if tabulate:
                 print(tabulate(display_df, headers='keys', tablefmt='grid', showindex=False))

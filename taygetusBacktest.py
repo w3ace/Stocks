@@ -318,6 +318,8 @@ def main() -> None:
         print("Today's buys:")
         for row in today_buys:
             print(f"{row['ticker']}: {row['price']:.2f}")
+        tickers_line = " ".join(t["ticker"].upper() for t in today_buys)
+        print(tickers_line)
 
     if total_trades:
         overall = total_return / total_trades

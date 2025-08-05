@@ -29,9 +29,9 @@ def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.
     return data
 
 
-def backtest_pattern(df: pd.DataFrame) -> list[float]:
-    """Return list of percent gains for trades meeting the Taygetus pattern."""
-    trades: list[float] = []
+def backtest_pattern(df: pd.DataFrame) -> list[dict[str, float | pd.Timestamp]]:
+    """Return detailed trades meeting the Taygetus pattern."""
+    trades: list[dict[str, float | pd.Timestamp]] = []
     for i in range(3, len(df)):
         day1 = df.iloc[i - 3]
         day2 = df.iloc[i - 2]
@@ -44,10 +44,20 @@ def backtest_pattern(df: pd.DataFrame) -> list[float]:
             and day3['Open'] > day2['Close']
             and day3['Close'] > day2['Open']
         ):
-            entry = day3['Close']
-            exit = day4['Open']
-            pct = (exit - entry) / entry * 100
-            trades.append(pct)
+            entry_price = day3['Close']
+            exit_price = day4['Open']
+            gain_loss = exit_price - entry_price
+            gain_loss_pct = gain_loss / entry_price * 100
+            trades.append(
+                {
+                    'entry_day': day3['Date'].date(),
+                    'exit_day': day4['Date'].date(),
+                    'entry_price': entry_price,
+                    'exit_price': exit_price,
+                    'gain_loss': gain_loss,
+                    'gain_loss_pct': gain_loss_pct,
+                }
+            )
     return trades
 
 
@@ -60,8 +70,8 @@ def main() -> None:
     parser.add_argument('--end', help='End date YYYY-MM-DD')
     parser.add_argument(
         '--console-out',
-        choices=['tickers'],
-        help='Print per-ticker summary to console in an ASCII table',
+        choices=['tickers', 'trades'],
+        help='Print per-ticker or per-trade summary to console in an ASCII table',
     )
     parser.add_argument(
         '--max-out',
@@ -82,6 +92,7 @@ def main() -> None:
     total_trades = 0
     total_return = 0.0
     rows: list[dict[str, float | int | str]] = []
+    trade_rows: list[dict[str, float | str | pd.Timestamp]] = []
 
     for ticker in tickers:
         df = fetch_daily_data(ticker, start, end)
@@ -90,8 +101,10 @@ def main() -> None:
             continue
         trades = backtest_pattern(df)
         count = len(trades)
-        avg = sum(trades) / count if count else 0.0
-        wins = sum(1 for t in trades if t > 0)
+        avg = (
+            sum(t['gain_loss_pct'] for t in trades) / count if count else 0.0
+        )
+        wins = sum(1 for t in trades if t['gain_loss_pct'] > 0)
         win_pct = wins / count * 100 if count else 0.0
         loss_pct = (count - wins) / count * 100 if count else 0.0
         if args.console_out == 'tickers':
@@ -104,12 +117,15 @@ def main() -> None:
                     'avg_gain_loss': avg,
                 }
             )
+        elif args.console_out == 'trades':
+            for trade in trades:
+                trade_rows.append({'ticker': ticker, **trade})
         else:
             print(
                 f"{ticker}: Trades {count}, Win {win_pct:.2f}%, Loss {loss_pct:.2f}%, Average Gain/Loss {avg:.2f}%"
             )
         total_trades += count
-        total_return += sum(trades)
+        total_return += sum(t['gain_loss_pct'] for t in trades)
 
     if args.console_out == 'tickers' and rows:
         df = pd.DataFrame(rows)
@@ -120,6 +136,13 @@ def main() -> None:
             print(tabulate(df, headers='keys', tablefmt='grid', showindex=False))
         else:
             print(df.to_string(index=False))
+    elif args.console_out == 'trades' and trade_rows:
+        trades_df = pd.DataFrame(trade_rows)
+        trades_df = round_numeric_cols(trades_df)
+        if tabulate:
+            print(tabulate(trades_df, headers='keys', tablefmt='grid', showindex=False))
+        else:
+            print(trades_df.to_string(index=False))
 
     if total_trades:
         overall = total_return / total_trades

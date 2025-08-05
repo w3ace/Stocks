@@ -61,7 +61,6 @@ filter. Each row also records `start_date`, `end_date`, and `range` so
 you can see the analysis period and opening range used.
 Pass `--console-out trades` to print each trade in the terminal. Use `--tickers` or
 `--console-out tickers` to display the per-ticker summary in an ASCII table after the trades.
-Use `--console-out buys` with `--end` set to today's date to print open entries identified for the current day.
 The summary table is ordered by `total_profit` descending and entries
 with profits less than the value passed to `--min-profit` are omitted.
 Pass `--plot daily` to generate a single plot summarizing daily activity. The

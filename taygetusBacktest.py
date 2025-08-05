@@ -41,32 +41,33 @@ def backtest_pattern(
     df : pd.DataFrame
         Daily price data.
     filter_value : str
-        One of ``"3E"``, ``"3EC"``, ``"3D"`` or ``"3DC"``.
+        One of ``"3E"``, ``"3EC"``, ``"3D"`` or ``"3DC"``. If the first
+        character is a digit, it determines the number of pattern days. ``day1``
+        refers to the most recent day (exit day) and numbering counts backwards.
     """
 
-    pattern_length = 4
+    pattern_length = (
+        int(filter_value[0]) + 1 if filter_value and filter_value[0].isdigit() else 4
+    )
 
     trades: list[dict[str, float | pd.Timestamp]] = []
-    for i in range(pattern_length, len(df)):
-        day1 = df.iloc[i - 3]
-        day2 = df.iloc[i - 2]
-        day3 = df.iloc[i - 1]
-        day4 = df.iloc[i]
+    for i in range(pattern_length - 1, len(df)):
+        days = {f"day{j + 1}": df.iloc[i - j] for j in range(pattern_length)}
 
         entry_price = exit_price = None
         if filter_value in {"3E", "3EC"}:
             if (
-                day1["Close"] > day1["Open"]
-                and day2["Close"] > day2["Open"]
-                and day3["Open"] > day2["Close"]
-                and day3["Close"] < day2["Open"]
+                days["day4"]["Close"] > days["day4"]["Open"]
+                and days["day3"]["Close"] > days["day3"]["Open"]
+                and days["day2"]["Open"] > days["day3"]["Close"]
+                and days["day2"]["Close"] < days["day3"]["Open"]
             ):
-                entry_price = day3["Close"]
-                exit_price = day4["Close" if filter_value == "3EC" else "Open"]
+                entry_price = days["day2"]["Close"]
+                exit_price = days["day1"]["Close" if filter_value == "3EC" else "Open"]
         elif filter_value in {"3D", "3DC"}:
-            if day1["Close"] > day2["Close"] > day3["Close"]:
-                entry_price = day3["Close"]
-                exit_price = day4["Close" if filter_value == "3DC" else "Open"]
+            if days["day4"]["Close"] > days["day3"]["Close"] > days["day2"]["Close"]:
+                entry_price = days["day2"]["Close"]
+                exit_price = days["day1"]["Close" if filter_value == "3DC" else "Open"]
         else:
             continue
 
@@ -75,8 +76,8 @@ def backtest_pattern(
             gain_loss_pct = gain_loss / entry_price * 100
             trades.append(
                 {
-                    "entry_day": day3["Date"].date(),
-                    "exit_day": day4["Date"].date(),
+                    "entry_day": days["day2"]["Date"].date(),
+                    "exit_day": days["day1"]["Date"].date(),
                     "entry_price": entry_price,
                     "exit_price": exit_price,
                     "gain_loss": gain_loss,

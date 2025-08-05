@@ -284,7 +284,7 @@ def main() -> None:
             # Skip weekends and NYSE holidays
             current += timedelta(days=1)
             continue
-        lookback_start = current - timedelta(days=args.sample)
+        lookback_start = current - timedelta(days=args.sample+1)
         lookback_end = current - timedelta(days=1)
 
         lookback_csv = ticker_summary_path(
@@ -298,37 +298,37 @@ def main() -> None:
         # Run eldoradoBacktest on the lookback period only when results are
         # missing from the ``tickers`` directory.  This avoids re-processing
         # data that has already been analyzed.
-        if not lookback_csv.is_file():
-            run_backtest([
-                "--end",
-                lookback_end.strftime("%Y-%m-%d"),
-                "--start",
-                lookback_start.strftime("%Y-%m-%d"),
-                "--range",
-                str(args.range),
-                "--loss-pct",
-                str(args.loss_pct),
-                "--profit-pct",
-                str(args.profit_pct),
-                "--filter",
-                args.filter,
-                "--min-profit",
-                str(args.sample/7),
-                *args.ticker_list,
-                # *(
-                #     ["--console-out", args.console_out]
-                #     if args.console_out and args.console_out != "none"
-                #     else []
-                # ),
-            ])
+   #     if not lookback_csv.is_file():
+        run_backtest([
+            "--end",
+            lookback_end.strftime("%Y-%m-%d"),
+            "--start",
+            lookback_start.strftime("%Y-%m-%d"),
+            "--range",
+            str(args.range),
+            "--loss-pct",
+            str(args.loss_pct),
+            "--profit-pct",
+            str(args.profit_pct),
+            "--filter",
+            args.filter,
+            "--min-profit",
+            str(args.sample/7),
+            *args.ticker_list,
+            # *(
+            #     ["--console-out", args.console_out]
+            #     if args.console_out and args.console_out != "none"
+            #     else []
+            # ),
+        ])
 
         df = pd.read_csv(lookback_csv)
 
         tickers_top_profit = (
-            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(5).tolist()
+            df.sort_values(by="total_top_profit", ascending=False)["ticker"].head(6).tolist()
         )
         tickers_profit = (
-            df.sort_values(by="total_profit", ascending=False)["ticker"].head(5).tolist()
+            df.sort_values(by="total_profit", ascending=False)["ticker"].head(6).tolist()
         )
 
         success_col = (
@@ -339,7 +339,7 @@ def main() -> None:
         )
 
         tickers_success = (
-            df.sort_values(by=success_col, ascending=False)["ticker"].head(5).tolist()
+            df.sort_values(by=success_col, ascending=False)["ticker"].head(6).tolist()
             if success_col
             else []
         )

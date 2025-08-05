@@ -39,8 +39,8 @@ def backtest_pattern(df: pd.DataFrame) -> list[float]:
             and day3['Open'] > day2['Close']
             and day3['Close'] > day2['Open']
         ):
-            entry = day4['Open']
-            exit = day4['Close']
+            entry = day3['Close']
+            exit = day4['Open']
             pct = (exit - entry) / entry * 100
             trades.append(pct)
     return trades

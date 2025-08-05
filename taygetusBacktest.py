@@ -31,6 +31,20 @@ def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.
     return data
 
 
+def fetch_current_price(ticker: str) -> float | None:
+    """Return the latest price for ``ticker`` using 1 minute data."""
+    data = yf.download(
+        ticker,
+        period="1d",
+        interval="1m",
+        auto_adjust=True,
+        progress=False,
+    )
+    if data.empty:
+        return None
+    return float(data["Close"].iloc[-1])
+
+
 def backtest_pattern(
     df: pd.DataFrame, filter_value: str
 ) -> list[dict[str, float | pd.Timestamp]]:
@@ -93,7 +107,7 @@ def main() -> None:
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--period', help='yfinance period string (e.g. 1y, 6mo)')
     group.add_argument('--start', help='Start date YYYY-MM-DD')
-    parser.add_argument('--end', help='End date YYYY-MM-DD')
+    parser.add_argument('--end', help='Last buy date YYYY-MM-DD')
     parser.add_argument(
         '--console-out',
         choices=['tickers', 'trades'],
@@ -118,29 +132,43 @@ def main() -> None:
 
     tickers = expand_ticker_args(args.ticker)
 
+    pattern_length = (
+        int(args.filter[0]) + 1 if args.filter and args.filter[0].isdigit() else 4
+    )
+
     if args.start:
         start = pd.to_datetime(args.start)
-        end = pd.to_datetime(args.end) if args.end else pd.Timestamp.now()
+        end = pd.to_datetime(args.end) if args.end else pd.Timestamp.now().normalize()
     else:
         start, end = period_to_start_end(args.period or '1y')
         start = pd.to_datetime(start)
         end = pd.to_datetime(end)
 
+    original_start = start
     original_end = end
-    end += pd.Timedelta(days=1)
+
+    fetch_start = start - pd.Timedelta(days=pattern_length)
+    fetch_end = end + pd.Timedelta(days=1)
 
     total_trades = 0
     total_return = 0.0
     total_wins = 0
     rows: list[dict[str, float | int | str]] = []
     trade_rows: list[dict[str, float | str | pd.Timestamp]] = []
+    today_buys: list[dict[str, float | str]] = []
+    is_today_end = original_end.normalize() == pd.Timestamp.now().normalize()
 
     for ticker in tickers:
-        df = fetch_daily_data(ticker, start, end)
+        df = fetch_daily_data(ticker, fetch_start, fetch_end)
         if df.empty:
             print(f"No data for {ticker}")
             continue
         trades = backtest_pattern(df, args.filter)
+        trades = [
+            t
+            for t in trades
+            if original_start.date() <= t["entry_day"] <= original_end.date()
+        ]
         count = len(trades)
         avg = (
             sum(t['gain_loss_pct'] for t in trades) / count if count else 0.0
@@ -168,7 +196,32 @@ def main() -> None:
         total_return += sum(t['gain_loss_pct'] for t in trades)
         total_wins += wins
 
-    start_label = start.strftime('%Y-%m-%d')
+        if is_today_end and not df[df["Date"] == original_end].empty:
+            recent = df[df["Date"] <= original_end].tail(pattern_length - 1)
+            if len(recent) == pattern_length - 1:
+                days = {f"day{j+2}": recent.iloc[-(j+1)] for j in range(pattern_length - 1)}
+                match = False
+                if args.filter in {"3E", "3EC"}:
+                    if (
+                        days["day4"]["Close"] > days["day4"]["Open"]
+                        and days["day3"]["Close"] > days["day3"]["Open"]
+                        and days["day2"]["Open"] > days["day3"]["Close"]
+                        and days["day2"]["Close"] < days["day3"]["Open"]
+                    ):
+                        match = True
+                elif args.filter in {"3D", "3DC"}:
+                    if (
+                        days["day4"]["Close"]
+                        > days["day3"]["Close"]
+                        > days["day2"]["Close"]
+                    ):
+                        match = True
+                if match:
+                    price = fetch_current_price(ticker)
+                    if price is not None:
+                        today_buys.append({"ticker": ticker, "price": price})
+
+    start_label = original_start.strftime('%Y-%m-%d')
     end_label = original_end.strftime('%Y-%m-%d')
     file_label = f"{start_label}-{end_label}-{args.filter}.csv"
     trades_dir = Path('trades') / 'taygetus'
@@ -209,6 +262,11 @@ def main() -> None:
         if args.console_out == 'tickers':
             print('No tickers to display')
     print(f'Ticker summary saved to {tickers_path}')
+
+    if today_buys:
+        print("Today's buys:")
+        for row in today_buys:
+            print(f"{row['ticker']}: {row['price']:.2f}")
 
     if total_trades:
         overall = total_return / total_trades

@@ -109,15 +109,16 @@ def main() -> None:
         win_pct = wins / count * 100 if count else 0.0
         loss_pct = (count - wins) / count * 100 if count else 0.0
         if args.console_out == 'tickers':
-            rows.append(
-                {
-                    'ticker': ticker,
-                    'trades': count,
-                    'win_pct': win_pct,
-                    'loss_pct': loss_pct,
-                    'avg_gain_loss': avg,
-                }
-            )
+            if count:  # filter out tickers with zero trades
+                rows.append(
+                    {
+                        'ticker': ticker,
+                        'trades': count,
+                        'win_pct': win_pct,
+                        'loss_pct': loss_pct,
+                        'avg_gain_loss': avg,
+                    }
+                )
         elif args.console_out == 'trades':
             for trade in trades:
                 trade_rows.append({'ticker': ticker, **trade})

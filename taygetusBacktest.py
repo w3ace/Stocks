@@ -217,11 +217,18 @@ def main() -> None:
         wins = sum(1 for t in trades if t['gain_loss_pct'] > 0)
         win_pct = wins / count * 100 if count else 0.0
         loss_pct = (count - wins) / count * 100 if count else 0.0
+        backtest_days = df[
+            (df["Date"].dt.date >= original_start.date())
+            & (df["Date"].dt.date <= original_end.date())
+        ]
+        total_days = len(backtest_days)
+        exec_pct = count / total_days * 100 if total_days else 0.0
         if count:
             rows.append(
                 {
                     'ticker': ticker,
                     'trades': count,
+                    'exec_pct': exec_pct,
                     'win_pct': win_pct,
                     'loss_pct': loss_pct,
                     'avg_gain_loss': avg,
@@ -231,7 +238,8 @@ def main() -> None:
             trade_rows.append({'ticker': ticker, **trade})
         if args.console_out not in ('tickers', 'trades'):
             print(
-                f"{ticker}: Trades {count}, Win {win_pct:.2f}%, Loss {loss_pct:.2f}%, Average Gain/Loss {avg:.2f}%"
+                f"{ticker}: Trades {count}, Execute {exec_pct:.2f}%, Win {win_pct:.2f}%, "
+                f"Loss {loss_pct:.2f}%, Average Gain/Loss {avg:.2f}%"
             )
         total_trades += count
         total_return += sum(t['gain_loss_pct'] for t in trades)
@@ -286,14 +294,16 @@ def main() -> None:
 
     tickers_df = pd.DataFrame(
         rows,
-        columns=['ticker', 'trades', 'win_pct', 'loss_pct', 'avg_gain_loss']
+        columns=['ticker', 'trades', 'exec_pct', 'win_pct', 'loss_pct', 'avg_gain_loss']
     )
     if not tickers_df.empty:
         tickers_df = tickers_df.sort_values(by='avg_gain_loss', ascending=False)
         tickers_df = round_numeric_cols(tickers_df)
         tickers_df.to_csv(tickers_path, index=False)
         if args.console_out == 'tickers':
-            display_df = tickers_df.head(args.max_out)
+            display_df = tickers_df[
+                (tickers_df['win_pct'] > 50) & (tickers_df['exec_pct'] > 3)
+            ].head(args.max_out)
             if tabulate:
                 print(tabulate(display_df, headers='keys', tablefmt='grid', showindex=False))
             else:

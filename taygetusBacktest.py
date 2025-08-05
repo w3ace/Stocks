@@ -43,8 +43,11 @@ def backtest_pattern(
     filter_value : str
         One of ``"3E"``, ``"3EC"``, ``"3D"`` or ``"3DC"``.
     """
+
+    pattern_length = 4
+
     trades: list[dict[str, float | pd.Timestamp]] = []
-    for i in range(4, len(df)):
+    for i in range(pattern_length, len(df)):
         day1 = df.iloc[i - 3]
         day2 = df.iloc[i - 2]
         day3 = df.iloc[i - 1]

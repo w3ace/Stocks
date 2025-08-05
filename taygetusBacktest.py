@@ -42,7 +42,9 @@ def fetch_current_price(ticker: str) -> float | None:
     )
     if data.empty:
         return None
-    return float(data["Close"].iloc[-1])
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+    return data["Close"].iloc[-1].item()
 
 
 def backtest_pattern(

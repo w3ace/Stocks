@@ -10,6 +10,8 @@ from pathlib import Path
 import time
 import pandas as pd
 import matplotlib.pyplot as plt
+import yfinance as yf
+from pandas.tseries.offsets import BDay
 
 from stock_functions import round_numeric_cols
 
@@ -17,6 +19,27 @@ from stock_functions import choose_yfinance_interval, period_to_start_end
 from open_range import OpenRangeAnalyzer
 from portfolio_utils import expand_ticker_args, sanitize_ticker_string
 
+
+
+def fetch_current_and_open_price(ticker: str) -> tuple[float, pd.Timestamp, float] | None:
+    """Return the current price, timestamp, and today's open for ``ticker``."""
+    data = yf.download(
+        ticker, period="1d", interval="1m", auto_adjust=True, progress=False
+    )
+    if data.empty:
+        return None
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+    data.index = pd.to_datetime(data.index)
+    if data.index.tz is None or data.index.tzinfo is None:
+        data.index = data.index.tz_localize("UTC").tz_convert("US/Eastern")
+    else:
+        data.index = data.index.tz_convert("US/Eastern")
+    open_price = float(data["Open"].iloc[0])
+    last_row = data.iloc[-1]
+    current_price = float(last_row["Close"])
+    price_time = data.index[-1]
+    return current_price, price_time, open_price
 
 
 def main() -> None:
@@ -410,6 +433,38 @@ def main() -> None:
                 "Tickers surpassing min profit by success percentage:",
                 " ".join(surpass_by_success),
             )
+
+        # If analysis ended on the previous trading day, check for today's buys
+        today_buys: list[dict[str, float | str | pd.Timestamp]] = []
+        end_date = end.tz_convert("US/Eastern").date() if end.tzinfo else end.date()
+        start_date = start.tz_convert("US/Eastern").date() if start.tzinfo else start.date()
+        last_day = end_date if end_date == start_date else (pd.Timestamp(end_date) - pd.Timedelta(days=1)).date()
+        prev_trading_day = (pd.Timestamp.now(tz="US/Eastern") - BDay(1)).date()
+        if last_day == prev_trading_day:
+            top_tickers = sorted(
+                set(surpass_by_profit) | set(surpass_by_top_profit) | set(surpass_by_success)
+            )
+            for t in top_tickers:
+                result = fetch_current_and_open_price(t)
+                if result is None:
+                    continue
+                current_price, price_time, open_price = result
+                if current_price > open_price:
+                    today_buys.append(
+                        {
+                            "ticker": t.upper(),
+                            "current_price": current_price,
+                            "price_time": price_time,
+                            "open_price": open_price,
+                        }
+                    )
+        if today_buys:
+            print("Today's Buys:")
+            for row in today_buys:
+                time_str = row["price_time"].strftime("%H:%M")
+                print(
+                    f"{row['ticker']}: {row['current_price']:.2f} at {time_str} (Open: {row['open_price']:.2f})"
+                )
 
     print("Total Trades:", super_total_trades)
     print("Total Profit:", f"{super_total_profit:.3f}")

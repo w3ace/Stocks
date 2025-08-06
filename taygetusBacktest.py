@@ -211,6 +211,7 @@ def main() -> None:
     rows: list[dict[str, float | int | str]] = []
     trade_rows: list[dict[str, float | str | pd.Timestamp]] = []
     today_buys: list[dict[str, float | str]] = []
+    ticker_stats: dict[str, dict[str, float | int | str]] = {}
     is_today_end = original_end.normalize() == pd.Timestamp.now().normalize()
 
     for ticker in tickers:
@@ -237,17 +238,17 @@ def main() -> None:
         ]
         total_days = len(backtest_days)
         exec_pct = count / total_days * 100 if total_days else 0.0
+        stats_row = {
+            'ticker': ticker,
+            'trades': count,
+            'exec_pct': exec_pct,
+            'win_pct': win_pct,
+            'loss_pct': loss_pct,
+            'avg_gain_loss': avg,
+        }
+        ticker_stats[ticker] = stats_row
         if count:
-            rows.append(
-                {
-                    'ticker': ticker,
-                    'trades': count,
-                    'exec_pct': exec_pct,
-                    'win_pct': win_pct,
-                    'loss_pct': loss_pct,
-                    'avg_gain_loss': avg,
-                }
-            )
+            rows.append(stats_row)
         for trade in trades:
             trade_rows.append({'ticker': ticker, **trade})
         if args.console_out not in ('tickers', 'trades'):
@@ -348,8 +349,14 @@ def main() -> None:
 
     if today_buys:
         print("Today's buys:")
-        for row in today_buys:
-            print(f"{row['ticker']}: {row['price']:.2f}")
+        buy_df = pd.DataFrame(today_buys)
+        stats_df = pd.DataFrame([ticker_stats[row['ticker']] for row in today_buys])
+        buy_df = buy_df.merge(stats_df, on='ticker')
+        buy_df = round_numeric_cols(buy_df)
+        if tabulate:
+            print(tabulate(buy_df, headers='keys', tablefmt='grid', showindex=False))
+        else:
+            print(buy_df.to_string(index=False))
         tickers_line = " ".join(t["ticker"].upper() for t in today_buys)
         print(tickers_line)
 

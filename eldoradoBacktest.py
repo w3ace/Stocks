@@ -459,12 +459,44 @@ def main() -> None:
                         }
                     )
         if today_buys:
+            today_df = pd.DataFrame(today_buys)
+            stats_df = raw_tickers_df.copy()
+            stats_df["ticker"] = stats_df["ticker"].astype(str).str.upper()
+            today_df["ticker"] = today_df["ticker"].astype(str).str.upper()
+            today_df = today_df.merge(stats_df, on="ticker", how="left")
+            if "price_time" in today_df.columns:
+                today_df["price_time"] = pd.to_datetime(today_df["price_time"]).dt.strftime("%H:%M")
+            for col in ["current_price", "open_price"]:
+                if col in today_df.columns:
+                    today_df[col] = today_df[col].map(lambda x: f"{x:.2f}")
+            for col in [
+                "trade_success_pct",
+                "total_profit",
+                "total_top_profit",
+                "avg_trade_time",
+            ]:
+                if col in today_df.columns:
+                    today_df[col] = today_df[col].map(lambda x: f"{x:.2f}")
+            cols = [
+                "ticker",
+                "current_price",
+                "open_price",
+                "price_time",
+                "total_trades",
+                "trade_success_pct",
+                "total_profit",
+                "total_top_profit",
+                "avg_trade_time",
+                "start_date",
+                "end_date",
+                "range",
+            ]
+            today_df = today_df[[c for c in cols if c in today_df.columns]]
             print("Today's Buys:")
-            for row in today_buys:
-                time_str = row["price_time"].strftime("%H:%M")
-                print(
-                    f"{row['ticker']}: {row['current_price']:.2f} at {time_str} (Open: {row['open_price']:.2f})"
-                )
+            if tabulate:
+                print(tabulate(today_df, headers="keys", tablefmt="grid", showindex=False))
+            else:
+                print(today_df.to_string(index=False))
 
     print("Total Trades:", super_total_trades)
     print("Total Profit:", f"{super_total_profit:.3f}")

@@ -39,6 +39,8 @@ def fetch_daily_data(
 
     cache_file = CACHE_DIR / cache_tag / ticker[0].upper() / ticker
 
+ #   print("Looking for ",cache_file, cache_enabled)
+
     if cache_enabled and cache_file.exists():
         try:
             data = pd.read_pickle(cache_file)
@@ -296,7 +298,7 @@ def main() -> None:
                         > days["day3"]["Close"]
                         > days["day2"]["Close"]
                     ):
-                        print(days["day5"]["Close"])
+                    #    print(days["day5"]["Close"])
                         match = True
                 if match:
                     price = fetch_current_price(ticker)

@@ -66,7 +66,7 @@ def fetch_daily_data(
         return data
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
-    data = data[["Open", "Close"]]
+    data = data[["Open", "High", "Low", "Close"]]
     data.reset_index(inplace=True)
     return data
 
@@ -97,9 +97,15 @@ def backtest_pattern(
     df : pd.DataFrame
         Daily price data.
     filter_value : str
-        One of ``"3E"``, ``"3EC"``, ``"3D"`` or ``"3DC"``. If the first
+        One of ``"3E"``, ``"4E"``, ``"3D"`` or ``"4D"``. If the first
         character is a digit, it determines the number of pattern days. ``day1``
         refers to the most recent day (exit day) and numbering counts backwards.
+
+    Notes
+    -----
+    Trades are entered at ``day2`` close and evaluated at ``day1`` open, close,
+    high and low. Gain/loss percentages are calculated for each of these
+    potential exits.
     """
 
     pattern_length = (
@@ -110,8 +116,8 @@ def backtest_pattern(
     for i in range(pattern_length - 1, len(df)):
         days = {f"day{j + 1}": df.iloc[i - j] for j in range(pattern_length)}
 
-        entry_price = exit_price = None
-        if filter_value in {"3E", "3EC"}:
+        entry_price = None
+        if filter_value == "3E":
             if (
                 days["day4"]["Close"] > days["day4"]["Open"]
                 and days["day3"]["Close"] > days["day3"]["Open"]
@@ -119,8 +125,7 @@ def backtest_pattern(
                 and days["day2"]["Close"] < days["day3"]["Open"]
             ):
                 entry_price = days["day2"]["Close"]
-                exit_price = days["day1"]["Close" if filter_value == "3EC" else "Open"]
-        elif filter_value in {"4E", "4EC"}:
+        elif filter_value == "4E":
             if (
                 days["day5"]["Close"] > days["day5"]["Open"]
                 and days["day4"]["Close"] > days["day4"]["Open"]
@@ -129,29 +134,48 @@ def backtest_pattern(
                 and days["day2"]["Close"] < days["day3"]["Open"]
             ):
                 entry_price = days["day2"]["Close"]
-                exit_price = days["day1"]["Close" if filter_value == "4EC" else "Open"]
-        elif filter_value in {"3D", "3DC"}:
+        elif filter_value == "3D":
             if days["day4"]["Close"] > days["day3"]["Close"] > days["day2"]["Close"]:
                 entry_price = days["day2"]["Close"]
-                exit_price = days["day1"]["Close" if filter_value == "3DC" else "Open"]
-        elif filter_value in {"4D", "4DC"}:
-            if days["day5"]["Close"] > days["day4"]["Close"] > days["day3"]["Close"] > days["day2"]["Close"]:
+        elif filter_value == "4D":
+            if (
+                days["day5"]["Close"]
+                > days["day4"]["Close"]
+                > days["day3"]["Close"]
+                > days["day2"]["Close"]
+            ):
                 entry_price = days["day2"]["Close"]
-                exit_price = days["day1"]["Close" if filter_value == "4DC" else "Open"]
         else:
             continue
 
-        if entry_price is not None and exit_price is not None:
-            gain_loss = exit_price - entry_price
-            gain_loss_pct = gain_loss / entry_price * 100
+        if entry_price is not None:
+            exit_open = days["day1"]["Open"]
+            exit_close = days["day1"]["Close"]
+            exit_high = days["day1"]["High"]
+            exit_low = days["day1"]["Low"]
+
+            gain_open = exit_open - entry_price
+            gain_close = exit_close - entry_price
+            gain_high = exit_high - entry_price
+            gain_low = exit_low - entry_price
+
             trades.append(
                 {
                     "entry_day": days["day2"]["Date"].date(),
                     "exit_day": days["day1"]["Date"].date(),
                     "entry_price": entry_price,
-                    "exit_price": exit_price,
-                    "gain_loss": gain_loss,
-                    "gain_loss_pct": gain_loss_pct,
+                    "exit_open": exit_open,
+                    "exit_close": exit_close,
+                    "exit_high": exit_high,
+                    "exit_low": exit_low,
+                    "gain_loss_open": gain_open,
+                    "gain_loss_close": gain_close,
+                    "gain_loss_high": gain_high,
+                    "gain_loss_low": gain_low,
+                    "gain_loss_open_pct": gain_open / entry_price * 100,
+                    "gain_loss_close_pct": gain_close / entry_price * 100,
+                    "gain_loss_high_pct": gain_high / entry_price * 100,
+                    "gain_loss_low_pct": gain_low / entry_price * 100,
                 }
             )
     return trades
@@ -171,12 +195,9 @@ def main() -> None:
     )
     parser.add_argument(
         '--filter',
-        choices=['3E', '4E', '3EC', '4EC', '3D', '4D', '3DC', '4DC'],
+        choices=['3E', '4E', '3D', '4D'],
         default='3E',
-        help=(
-            'Pattern filter: 3E current Taygetus, 3EC exit at Day4 Close, '
-            '3D descending closes, 3DC exit at Day4 Close'
-        ),
+        help='Pattern filter: 3E current Taygetus, 3D descending closes',
     )
     parser.add_argument(
         '--max-out',
@@ -208,7 +229,10 @@ def main() -> None:
     fetch_end = end + pd.Timedelta(days=1)
 
     total_trades = 0
-    total_return = 0.0
+    total_return_open = 0.0
+    total_return_close = 0.0
+    total_return_high = 0.0
+    total_return_low = 0.0
     total_wins = 0
     rows: list[dict[str, float | int | str]] = []
     trade_rows: list[dict[str, float | str | pd.Timestamp]] = []
@@ -228,10 +252,19 @@ def main() -> None:
             if original_start.date() <= t["entry_day"] <= original_end.date()
         ]
         count = len(trades)
-        avg = (
-            sum(t['gain_loss_pct'] for t in trades) / count if count else 0.0
+        avg_open = (
+            sum(t['gain_loss_open_pct'] for t in trades) / count if count else 0.0
         )
-        wins = sum(1 for t in trades if t['gain_loss_pct'] > 0)
+        avg_close = (
+            sum(t['gain_loss_close_pct'] for t in trades) / count if count else 0.0
+        )
+        avg_high = (
+            sum(t['gain_loss_high_pct'] for t in trades) / count if count else 0.0
+        )
+        avg_low = (
+            sum(t['gain_loss_low_pct'] for t in trades) / count if count else 0.0
+        )
+        wins = sum(1 for t in trades if t['gain_loss_open_pct'] > 0)
         win_pct = wins / count * 100 if count else 0.0
         loss_pct = (count - wins) / count * 100 if count else 0.0
         backtest_days = df[
@@ -246,7 +279,10 @@ def main() -> None:
             'exec_pct': exec_pct,
             'win_pct': win_pct,
             'loss_pct': loss_pct,
-            'avg_gain_loss': avg,
+            'avg_open': avg_open,
+            'avg_close': avg_close,
+            'avg_high': avg_high,
+            'avg_low': avg_low,
         }
         ticker_stats[ticker] = stats_row
         if count:
@@ -256,10 +292,14 @@ def main() -> None:
         if args.console_out not in ('tickers', 'trades'):
             print(
                 f"{ticker}: Trades {count}, Execute {exec_pct:.2f}%, Win {win_pct:.2f}%, "
-                f"Loss {loss_pct:.2f}%, Average Gain/Loss {avg:.2f}%"
+                f"Loss {loss_pct:.2f}%, Avg Gain/Loss Open {avg_open:.2f}%, "
+                f"Close {avg_close:.2f}%, High {avg_high:.2f}%, Low {avg_low:.2f}%"
             )
         total_trades += count
-        total_return += sum(t['gain_loss_pct'] for t in trades)
+        total_return_open += sum(t['gain_loss_open_pct'] for t in trades)
+        total_return_close += sum(t['gain_loss_close_pct'] for t in trades)
+        total_return_high += sum(t['gain_loss_high_pct'] for t in trades)
+        total_return_low += sum(t['gain_loss_low_pct'] for t in trades)
         total_wins += wins
 
         if is_today_end and not df[df["Date"] == original_end].empty:
@@ -267,7 +307,7 @@ def main() -> None:
             if len(recent) == pattern_length - 1:
                 days = {f"day{j+2}": recent.iloc[-(j+1)] for j in range(pattern_length - 1)}
                 match = False
-                if args.filter in {"3E", "3EC"}:
+                if args.filter == "3E":
                     if (
                         days["day4"]["Close"] > days["day4"]["Open"]
                         and days["day3"]["Close"] > days["day3"]["Open"]
@@ -275,7 +315,7 @@ def main() -> None:
                         and days["day2"]["Close"] < days["day3"]["Open"]
                     ):
                         match = True
-                elif args.filter in {"4E", "4EC"}:
+                elif args.filter == "4E":
                     if (
                         days["day5"]["Close"] > days["day5"]["Open"]
                         and days["day4"]["Close"] > days["day4"]["Open"]
@@ -284,21 +324,20 @@ def main() -> None:
                         and days["day2"]["Close"] < days["day3"]["Open"]
                     ):
                         match = True
-                elif args.filter in {"3D", "3DC"}:
+                elif args.filter == "3D":
                     if (
                         days["day4"]["Close"]
                         > days["day3"]["Close"]
                         > days["day2"]["Close"]
                     ):
                         match = True
-                elif args.filter in {"4D", "4DC"}:
+                elif args.filter == "4D":
                     if (
                         days["day5"]["Close"]
                         > days["day4"]["Close"]
                         > days["day3"]["Close"]
                         > days["day2"]["Close"]
                     ):
-                    #    print(days["day5"]["Close"])
                         match = True
                 if match:
                     price = fetch_current_price(ticker)
@@ -329,10 +368,10 @@ def main() -> None:
 
     tickers_df = pd.DataFrame(
         rows,
-        columns=['ticker', 'trades', 'exec_pct', 'win_pct', 'loss_pct', 'avg_gain_loss']
+        columns=['ticker', 'trades', 'exec_pct', 'win_pct', 'loss_pct', 'avg_open', 'avg_close', 'avg_high', 'avg_low']
     )
     if not tickers_df.empty:
-        tickers_df = tickers_df.sort_values(by='avg_gain_loss', ascending=False)
+        tickers_df = tickers_df.sort_values(by='avg_open', ascending=False)
         tickers_df = round_numeric_cols(tickers_df)
         tickers_df.to_csv(tickers_path, index=False)
         if args.console_out == 'tickers':
@@ -363,11 +402,15 @@ def main() -> None:
         print(tickers_line)
 
     if total_trades:
-        overall = total_return / total_trades
+        overall_open = total_return_open / total_trades
+        overall_close = total_return_close / total_trades
+        overall_high = total_return_high / total_trades
+        overall_low = total_return_low / total_trades
         success_rate = total_wins / total_trades * 100
         print(
             f"Overall: Trades {total_trades}, Success Rate {success_rate:.2f}%, "
-            f"Average Gain/Loss {overall:.2f}%"
+            f"Average Gain/Loss Open {overall_open:.2f}%, Close {overall_close:.2f}%, "
+            f"High {overall_high:.2f}%, Low {overall_low:.2f}%"
         )
     else:
         print("No trades found across tickers")

@@ -6,71 +6,12 @@ import yfinance as yf
 import numpy as np
 from stock_functions import period_to_start_end, round_numeric_cols
 from portfolio_utils import expand_ticker_args
+from backtest_filters import fetch_daily_data, add_indicators, passes_filters
 
 try:
     from tabulate import tabulate
 except ImportError:  # pragma: no cover - optional dependency
     tabulate = None
-
-
-CACHE_DIR = Path(__file__).resolve().parent / "yfinance_cache" / "taygetus"
-
-
-def fetch_daily_data(
-    ticker: str,
-    start: pd.Timestamp,
-    end: pd.Timestamp,
-    cache_tag: str,
-) -> pd.DataFrame:
-    """Download daily price data for *ticker* between *start* and *end*.
-
-    The raw *yfinance* response is cached under ``CACHE_DIR/cache_tag`` grouped by
-    the first letter of ``ticker``. Caching is disabled if the requested range
-    includes the current trading day and it is before 4:30pm US/Eastern.
-    """
-
-    now_est = pd.Timestamp.now(tz="US/Eastern")
-    four_thirty = pd.Timestamp("16:30", tz="US/Eastern").time()
-    start_date = pd.to_datetime(start).date()
-    end_date = pd.to_datetime(end).date()
-
-    cache_enabled = not (
-        start_date <= now_est.date() < end_date and now_est.time() < four_thirty
-    )
-
-    cache_file = CACHE_DIR / cache_tag / ticker[0].upper() / ticker
-
- #   print("Looking for ",cache_file, cache_enabled)
-
-    if cache_enabled and cache_file.exists():
-        try:
-            data = pd.read_pickle(cache_file)
-        except Exception:
-            data = pd.DataFrame()
-    else:
-        data = yf.download(
-            ticker,
-            start=start,
-            end=end,
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-        )
-        if cache_enabled and not data.empty:
-            try:
-                cache_file.parent.mkdir(parents=True, exist_ok=True)
-                data.to_pickle(cache_file)
-            except Exception:
-                pass
-
-    if data.empty:
-        return data
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
-    # include Volume for liquidity/volatility filters
-    data = data[["Open", "High", "Low", "Close", "Volume"]]
-    data.reset_index(inplace=True)
-    return data
 
 
 def fetch_current_price(ticker: str) -> float | None:
@@ -89,106 +30,6 @@ def fetch_current_price(ticker: str) -> float | None:
     return data["Close"].iloc[-1].item()
 
 
-def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute rolling indicators used by filters."""
-    if df.empty:
-        return df
-    df = df.copy()
-    df["PrevClose"] = df["Close"].shift(1)
-    tr1 = df["High"] - df["Low"]
-    tr2 = (df["High"] - df["PrevClose"]).abs()
-    tr3 = (df["Low"] - df["PrevClose"]).abs()
-    tr = np.maximum(tr1, np.maximum(tr2, tr3))
-    df["ATR14"] = tr.rolling(14).mean()
-    df["ATRpct"] = (df["ATR14"] / df["Close"]) * 100.0
-
-    # Simple moving averages
-    df["SMA20"] = df["Close"].rolling(20).mean()
-    df["SMA50"] = df["Close"].rolling(50).mean()
-    df["SMA200"] = df["Close"].rolling(200).mean()
-    df["SMA20_5dago"] = df["SMA20"].shift(5)
-
-    # Liquidity
-    df["VolSMA20"] = df["Volume"].rolling(20).mean()
-    df["DollarVol20"] = (df["Close"] * df["Volume"]).rolling(20).mean()
-
-    # Candle anatomy
-    rng = (df["High"] - df["Low"]).replace(0, np.nan)
-    body = (df["Close"] - df["Open"]).abs()
-    df["BodyPct"] = (body / rng) * 100.0
-    df["UpperWickPct"] = ((df["High"] - df[["Open", "Close"]].max(axis=1)) / rng) * 100.0
-    df["LowerWickPct"] = (((df[["Open", "Close"]].min(axis=1)) - df["Low"]) / rng) * 100.0
-
-    # NR7 and inside days
-    df["DayRange"] = df["High"] - df["Low"]
-    df["NR7"] = df["DayRange"] < df["DayRange"].rolling(7).max().shift(1)
-    df["Inside"] = (df["High"] <= df["High"].shift(1)) & (df["Low"] >= df["Low"].shift(1))
-    ins = df["Inside"].astype("boolean")          # ensure non-object dtype
-    df["Inside2"] = ins & ins.shift(1, fill_value=False)
-    # Pullback context
-    hh20 = df["Close"].rolling(20).max()
-    df["PullbackPct20"] = ((hh20 - df["Close"]) / hh20) * 100.0
-    return df
-
-
-def passes_filters(df: pd.DataFrame, i: int, args) -> bool:
-    """
-    i is the index of day1 (exit day) within df; day2 is i-1 and day3 is i-2.
-    Applies liquidity, volatility, trend, and candle quality filters to day2
-    and contextual checks that involve day3.
-    """
-    if i - 2 < 0:
-        return False
-    d2 = df.iloc[i - 1]
-    d3 = df.iloc[i - 2]
-
-    # Price bounds
-    if not (args.min_price <= d2["Close"] <= args.max_price):
-        return False
-
-    # Liquidity
-    if pd.isna(d2.get("VolSMA20")) or d2["VolSMA20"] < args.min_avg_vol:
-        return False
-    if pd.isna(d2.get("DollarVol20")) or d2["DollarVol20"] < args.min_dollar_vol:
-        return False
-
-    # Volatility band
-    if pd.isna(d2.get("ATRpct")) or not (args.min_atr_pct <= d2["ATRpct"] <= args.max_atr_pct):
-        return False
-    if args.nr7 and not bool(d2.get("NR7", False)):
-        return False
-    if args.inside_2 and not bool(d2.get("Inside2", False)):
-        return False
-
-    # Trend context
-    sma_col = f"SMA{args.above_sma}"
-    if pd.isna(d2.get(sma_col)) or not (d2["Close"] > d2[sma_col]):
-        return False
-    if pd.isna(d2.get("SMA20")) or pd.isna(d2.get("SMA20_5dago")):
-        return False
-    if (d2["SMA20"] - d2["SMA20_5dago"]) <= args.trend_slope:
-        return False
-
-    # Candle quality (day2)
-    if pd.isna(d2.get("BodyPct")) or d2["BodyPct"] < args.body_pct_min:
-        return False
-    if pd.isna(d2.get("UpperWickPct")) or d2["UpperWickPct"] > args.upper_wick_max:
-        return False
-    if pd.isna(d2.get("LowerWickPct")) or d2["LowerWickPct"] > args.lower_wick_max:
-        return False
-
-    # Pullback context (lower is tighter)
-    if pd.isna(d2.get("PullbackPct20")) or d2["PullbackPct20"] > args.pullback_pct_max:
-        return False
-
-    # Gap magnitude between day2 open and day3 close (or reverse for F)
-    if pd.isna(d3.get("Close")) or pd.isna(d2.get("Open")) or d3["Close"] == 0:
-        return False
-    gap_pct = abs((d2["Open"] - d3["Close"]) / d3["Close"]) * 100.0
-    if gap_pct < args.min_gap_pct:
-        return False
-
-    return True
 
 
 def backtest_pattern(
@@ -381,7 +222,7 @@ def main() -> None:
     is_today_end = original_end.normalize() == pd.Timestamp.now().normalize()
 
     for ticker in tickers:
-        df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag)
+        df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "taygetus")
         if df.empty:
             print(f"No data for {ticker}")
             continue

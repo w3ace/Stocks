@@ -12,6 +12,7 @@ except Exception:  # ImportError or other
 from fetch_stock import fetch_stock
 from portfolio_utils import expand_ticker_args
 from stock_functions import round_numeric_cols
+from backtest_filters import fetch_daily_data, add_indicators, passes_filters
 
 
 def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
@@ -125,12 +126,31 @@ def closing_open_trades(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
 
 
 def analyze_ticker(
-    ticker: str, start: pd.Timestamp, end: pd.Timestamp, minutes: int
+    ticker: str, start: pd.Timestamp, end: pd.Timestamp, minutes: int, args
 ) -> tuple[float, float, float, float, float, int, pd.DataFrame]:
     df = fetch_intraday(ticker, start, end + pd.Timedelta(days=1), interval="5m")
     trades = closing_open_trades(df, minutes)
     if trades.empty:
         return 0.0, 0.0, 0.0, 0.0, 0.0, 0, trades
+
+    # Apply daily filters based on sell day (day1)
+    cache_tag = f"{start.date()}_{end.date()}"
+    fetch_start = start - pd.Timedelta(days=5)
+    fetch_end = end + pd.Timedelta(days=1)
+    daily_df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "neverland")
+    daily_df = add_indicators(daily_df)
+    mask = []
+    for _, row in trades.iterrows():
+        sell_date = pd.to_datetime(row["sell_time"]).date()
+        idx = daily_df.index[daily_df["Date"].dt.date == sell_date]
+        if len(idx) and passes_filters(daily_df, int(idx[0]), args):
+            mask.append(True)
+        else:
+            mask.append(False)
+    trades = trades[mask]
+    if trades.empty:
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0, trades
+
     highest_gain = trades["gain_pct"].max()
     highest_loss = trades["gain_pct"].min()
     average_gain = trades["gain_pct"].mean()
@@ -177,6 +197,22 @@ def main() -> None:
         default=25,
         help="Maximum results to display with --console-out tickers (default 25)",
     )
+    # === Filtering flags ===
+    parser.add_argument("--min-price", type=float, default=5.0)
+    parser.add_argument("--max-price", type=float, default=200.0)
+    parser.add_argument("--min-avg-vol", dest="min_avg_vol", type=float, default=1_000_000)
+    parser.add_argument("--min-dollar-vol", dest="min_dollar_vol", type=float, default=20_000_000)
+    parser.add_argument("--min-atr-pct", type=float, default=1.0)
+    parser.add_argument("--max-atr-pct", type=float, default=8.0)
+    parser.add_argument("--above-sma", type=int, choices=[20, 50, 200], default=20)
+    parser.add_argument("--trend-slope", type=float, default=0.0)
+    parser.add_argument("--nr7", action="store_true")
+    parser.add_argument("--inside-2", dest="inside_2", action="store_true")
+    parser.add_argument("--min-gap-pct", type=float, default=0.4)
+    parser.add_argument("--body-pct-min", dest="body_pct_min", type=float, default=60.0)
+    parser.add_argument("--upper-wick-max", dest="upper_wick_max", type=float, default=30.0)
+    parser.add_argument("--lower-wick-max", dest="lower_wick_max", type=float, default=40.0)
+    parser.add_argument("--pullback-pct-max", dest="pullback_pct_max", type=float, default=6.0)
     args = parser.parse_args()
 
     start = pd.to_datetime(args.start)
@@ -189,7 +225,7 @@ def main() -> None:
 
     for ticker in tickers:
         hi, lo, avg, avg_max_loss, avg_max_gain, count, trades = analyze_ticker(
-            ticker, start, end, args.range
+            ticker, start, end, args.range, args
         )
         if count == 0:
             print(f"{ticker}: no data in range")

@@ -18,6 +18,7 @@ from stock_functions import round_numeric_cols
 from stock_functions import choose_yfinance_interval, period_to_start_end
 from open_range import OpenRangeAnalyzer
 from portfolio_utils import expand_ticker_args, sanitize_ticker_string
+from backtest_filters import fetch_daily_data, add_indicators, passes_filters
 
 
 
@@ -121,6 +122,22 @@ def main() -> None:
         choices=["daily"],
         help="Generate plots. 'daily' shows average profit and trade counts per day",
     )
+    # === Filtering flags ===
+    parser.add_argument("--min-price", type=float, default=5.0)
+    parser.add_argument("--max-price", type=float, default=200.0)
+    parser.add_argument("--min-avg-vol", dest="min_avg_vol", type=float, default=1_000_000)
+    parser.add_argument("--min-dollar-vol", dest="min_dollar_vol", type=float, default=20_000_000)
+    parser.add_argument("--min-atr-pct", type=float, default=1.0)
+    parser.add_argument("--max-atr-pct", type=float, default=8.0)
+    parser.add_argument("--above-sma", type=int, choices=[20, 50, 200], default=20)
+    parser.add_argument("--trend-slope", type=float, default=0.0)
+    parser.add_argument("--nr7", action="store_true")
+    parser.add_argument("--inside-2", dest="inside_2", action="store_true")
+    parser.add_argument("--min-gap-pct", type=float, default=0.4)
+    parser.add_argument("--body-pct-min", dest="body_pct_min", type=float, default=60.0)
+    parser.add_argument("--upper-wick-max", dest="upper_wick_max", type=float, default=30.0)
+    parser.add_argument("--lower-wick-max", dest="lower_wick_max", type=float, default=40.0)
+    parser.add_argument("--pullback-pct-max", dest="pullback_pct_max", type=float, default=6.0)
     args = parser.parse_args()
 
     ticker_label = sanitize_ticker_string(args.ticker)
@@ -200,6 +217,24 @@ def main() -> None:
             max_trades=args.max_trades,
         )
         results, or_pct = analyzer.analyze_ticker(ticker, start, end)
+
+        # Apply daily filters to each trade
+        cache_tag = f"{start.date()}_{end.date()}"
+        fetch_start = start - pd.Timedelta(days=5)
+        fetch_end = end + pd.Timedelta(days=1)
+        daily_df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "eldorado")
+        daily_df = add_indicators(daily_df)
+        filtered_details: list[dict[str, float | str | pd.Timestamp]] = []
+        for item in results.trade_details:
+            trade_date = pd.to_datetime(item.get("date")).date()
+            exit_day = (pd.Timestamp(trade_date) + BDay(1)).date()
+            idx = daily_df.index[daily_df["Date"].dt.date == exit_day]
+            if len(idx) and passes_filters(daily_df, int(idx[0]), args):
+                filtered_details.append(item)
+        results.trade_details = filtered_details
+        results.total_trades = len(filtered_details)
+        results.total_profit = sum(d.get("profit", 0.0) for d in filtered_details)
+        results.total_top_profit = sum(d.get("top_profit", 0.0) for d in filtered_details)
 
         """
         print(

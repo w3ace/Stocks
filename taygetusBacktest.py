@@ -117,7 +117,7 @@ def backtest_pattern(
             pass
 
         if entry_price is not None and (
-            not args.indicators or passes_filters(df, i, args)
+            not args.indicators or passes_filters(df, i, args, args.indicators)
         ):
             exit_open = days["day1"]["Open"]
             exit_close = days["day1"]["Close"]
@@ -168,8 +168,26 @@ def main() -> None:
     )
     parser.add_argument(
         '--indicators',
-        action='store_true',
-        help='Enable indicator-based filters',  # default was on
+        nargs='+',
+        choices=[
+            'price',
+            'avg_vol',
+            'dollar_vol',
+            'atr_pct',
+            'above_sma',
+            'trend_slope',
+            'nr7',
+            'inside_2',
+            'body_pct',
+            'upper_wick',
+            'lower_wick',
+            'pullback_pct',
+            'gap',
+        ],
+        help=(
+            'Indicator filters to enable (default none). '
+            'Example: --indicators price atr_pct gap'  # previously all enabled by default
+        ),
     )
     # === Filtering flags ===
     parser.add_argument("--min-price", type=float, default=5.0)
@@ -180,8 +198,6 @@ def main() -> None:
     parser.add_argument("--max-atr-pct", type=float, default=8.0)
     parser.add_argument("--above-sma", type=int, choices=[20, 50, 200], default=20)
     parser.add_argument("--trend-slope", type=float, default=0.0)  # SMA20 - SMA20_5dago > this
-    parser.add_argument("--nr7", action="store_true")
-    parser.add_argument("--inside-2", dest="inside_2", action="store_true")
     parser.add_argument("--min-gap-pct", type=float, default=0.4)
     parser.add_argument("--body-pct-min", dest="body_pct_min", type=float, default=60.0)
     parser.add_argument("--upper-wick-max", dest="upper_wick_max", type=float, default=30.0)
@@ -323,7 +339,7 @@ def main() -> None:
             if match:
                 idx = df.index[df["Date"] == original_end]
                 if len(idx) and (
-                    not args.indicators or passes_filters(df, int(idx[0]), args)
+                    not args.indicators or passes_filters(df, int(idx[0]), args, args.indicators)
                 ):
                     price = fetch_current_price(ticker)
                     if price is not None:

@@ -123,8 +123,8 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["DayRange"] = df["High"] - df["Low"]
     df["NR7"] = df["DayRange"] < df["DayRange"].rolling(7).max().shift(1)
     df["Inside"] = (df["High"] <= df["High"].shift(1)) & (df["Low"] >= df["Low"].shift(1))
-    df["Inside2"] = df["Inside"] & df["Inside"].shift(1).fillna(False)
-
+    ins = df["Inside"].astype("boolean")          # ensure non-object dtype
+    df["Inside2"] = ins & ins.shift(1, fill_value=False)
     # Pullback context
     hh20 = df["Close"].rolling(20).max()
     df["PullbackPct20"] = ((hh20 - df["Close"]) / hh20) * 100.0

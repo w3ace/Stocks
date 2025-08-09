@@ -1,0 +1,45 @@
+What to filter (recommended defaults in parens)
+Liquidity
+
+--min-price (5) and --max-price (200)
+
+--min-avg-vol 20-day shares (1_000_000)
+
+--min-dollar-vol 20-day $ volume (20_000_000)
+
+Volatility
+
+--min-atr-pct (1.0) and --max-atr-pct (8.0) based on ATR(14)/Close
+
+Optional compression: --nr7 (true) → day2 is NR7
+
+Optional --inside-2 (true) → 2 consecutive inside days into entry
+
+Trend context
+
+--above-sma {20,50,200} (20) require day2 close > SMA
+
+--trend-slope (0) require SMA20 today > SMA20 5d ago
+
+Pattern quality (tight candles/gaps)
+
+--min-gap-pct (0.4) for your gap condition days (e.g., day2 vs day3 close/open)
+
+--body-pct-min (60) min real-body% of range on day2
+
+--upper-wick-max (30) and/or --lower-wick-max (40) on day2
+
+--pullback-pct-max (6) recent retrace from 20-day high to day2 close
+
+Why these work
+
+Liquidity filters keep you out of illiquid names where fills slip and backtests lie.
+
+ATR% band avoids dead tickers (too low) and landmines (too high), and NR7/Inside-2 flags volatility contraction before expansion.
+
+Trend alignment (close > SMA, rising SMA20) makes reversal patterns pick better spots and continuation patterns… well, continue.
+
+Candle quality (big body, tame wicks) prunes fake breakouts and newsy spikes.
+
+Gap threshold ensures your E/F logic captures a meaningful gap, not a rounding error.
+

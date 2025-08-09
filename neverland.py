@@ -138,12 +138,15 @@ def analyze_ticker(
     fetch_start = start - pd.Timedelta(days=5)
     fetch_end = end + pd.Timedelta(days=1)
     daily_df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "neverland")
-    daily_df = add_indicators(daily_df)
+    if args.indicators:
+        daily_df = add_indicators(daily_df)
     mask = []
     for _, row in trades.iterrows():
         sell_date = pd.to_datetime(row["sell_time"]).date()
         idx = daily_df.index[daily_df["Date"].dt.date == sell_date]
-        if len(idx) and passes_filters(daily_df, int(idx[0]), args):
+        if len(idx) and (
+            not args.indicators or passes_filters(daily_df, int(idx[0]), args)
+        ):
             mask.append(True)
         else:
             mask.append(False)
@@ -196,6 +199,11 @@ def main() -> None:
         type=int,
         default=25,
         help="Maximum results to display with --console-out tickers (default 25)",
+    )
+    parser.add_argument(
+        "--indicators",
+        action="store_true",
+        help="Enable indicator-based filters",  # default was on
     )
     # === Filtering flags ===
     parser.add_argument("--min-price", type=float, default=5.0)

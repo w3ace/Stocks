@@ -116,7 +116,9 @@ def backtest_pattern(
             # Unrecognized filter
             pass
 
-        if entry_price is not None and passes_filters(df, i, args):
+        if entry_price is not None and (
+            not args.indicators or passes_filters(df, i, args)
+        ):
             exit_open = days["day1"]["Open"]
             exit_close = days["day1"]["Close"]
             exit_high = days["day1"]["High"]
@@ -163,6 +165,11 @@ def main() -> None:
         choices=['3E', '4E', '3D', '4D', '5D','2F','3F', '4F', '5F', '6F', '3U', '4U', '5U', '6U'],
         default='3E',
         help='Pattern filter: 3E current Taygetus, 3D descending closes',
+    )
+    parser.add_argument(
+        '--indicators',
+        action='store_true',
+        help='Enable indicator-based filters',  # default was on
     )
     # === Filtering flags ===
     parser.add_argument("--min-price", type=float, default=5.0)
@@ -226,7 +233,8 @@ def main() -> None:
         if df.empty:
             print(f"No data for {ticker}")
             continue
-        df = add_indicators(df)
+        if args.indicators:
+            df = add_indicators(df)
         trades = backtest_pattern(df, args.filter, args)
         trades = [
             t
@@ -314,7 +322,9 @@ def main() -> None:
             # Reuse filter gate with the true df index (day1 == original_end)
             if match:
                 idx = df.index[df["Date"] == original_end]
-                if len(idx) and passes_filters(df, int(idx[0]), args):
+                if len(idx) and (
+                    not args.indicators or passes_filters(df, int(idx[0]), args)
+                ):
                     price = fetch_current_price(ticker)
                     if price is not None:
                         today_buys.append({"ticker": ticker, "price": price})

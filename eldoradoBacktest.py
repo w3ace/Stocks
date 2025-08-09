@@ -122,6 +122,11 @@ def main() -> None:
         choices=["daily"],
         help="Generate plots. 'daily' shows average profit and trade counts per day",
     )
+    parser.add_argument(
+        "--indicators",
+        action="store_true",
+        help="Enable indicator-based filters",  # default was on
+    )
     # === Filtering flags ===
     parser.add_argument("--min-price", type=float, default=5.0)
     parser.add_argument("--max-price", type=float, default=200.0)
@@ -223,13 +228,16 @@ def main() -> None:
         fetch_start = start - pd.Timedelta(days=5)
         fetch_end = end + pd.Timedelta(days=1)
         daily_df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "eldorado")
-        daily_df = add_indicators(daily_df)
+        if args.indicators:
+            daily_df = add_indicators(daily_df)
         filtered_details: list[dict[str, float | str | pd.Timestamp]] = []
         for item in results.trade_details:
             trade_date = pd.to_datetime(item.get("date")).date()
             exit_day = (pd.Timestamp(trade_date) + BDay(1)).date()
             idx = daily_df.index[daily_df["Date"].dt.date == exit_day]
-            if len(idx) and passes_filters(daily_df, int(idx[0]), args):
+            if len(idx) and (
+                not args.indicators or passes_filters(daily_df, int(idx[0]), args)
+            ):
                 filtered_details.append(item)
         results.trade_details = filtered_details
         results.total_trades = len(filtered_details)

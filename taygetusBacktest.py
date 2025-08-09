@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
+import numpy as np
 from stock_functions import period_to_start_end, round_numeric_cols
 from portfolio_utils import expand_ticker_args
 
@@ -66,7 +67,8 @@ def fetch_daily_data(
         return data
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
-    data = data[["Open", "High", "Low", "Close"]]
+    # include Volume for liquidity/volatility filters
+    data = data[["Open", "High", "Low", "Close", "Volume"]]
     data.reset_index(inplace=True)
     return data
 
@@ -87,8 +89,110 @@ def fetch_current_price(ticker: str) -> float | None:
     return data["Close"].iloc[-1].item()
 
 
+def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute rolling indicators used by filters."""
+    if df.empty:
+        return df
+    df = df.copy()
+    df["PrevClose"] = df["Close"].shift(1)
+    tr1 = df["High"] - df["Low"]
+    tr2 = (df["High"] - df["PrevClose"]).abs()
+    tr3 = (df["Low"] - df["PrevClose"]).abs()
+    tr = np.maximum(tr1, np.maximum(tr2, tr3))
+    df["ATR14"] = tr.rolling(14).mean()
+    df["ATRpct"] = (df["ATR14"] / df["Close"]) * 100.0
+
+    # Simple moving averages
+    df["SMA20"] = df["Close"].rolling(20).mean()
+    df["SMA50"] = df["Close"].rolling(50).mean()
+    df["SMA200"] = df["Close"].rolling(200).mean()
+    df["SMA20_5dago"] = df["SMA20"].shift(5)
+
+    # Liquidity
+    df["VolSMA20"] = df["Volume"].rolling(20).mean()
+    df["DollarVol20"] = (df["Close"] * df["Volume"]).rolling(20).mean()
+
+    # Candle anatomy
+    rng = (df["High"] - df["Low"]).replace(0, np.nan)
+    body = (df["Close"] - df["Open"]).abs()
+    df["BodyPct"] = (body / rng) * 100.0
+    df["UpperWickPct"] = ((df["High"] - df[["Open", "Close"]].max(axis=1)) / rng) * 100.0
+    df["LowerWickPct"] = (((df[["Open", "Close"]].min(axis=1)) - df["Low"]) / rng) * 100.0
+
+    # NR7 and inside days
+    df["DayRange"] = df["High"] - df["Low"]
+    df["NR7"] = df["DayRange"] < df["DayRange"].rolling(7).max().shift(1)
+    df["Inside"] = (df["High"] <= df["High"].shift(1)) & (df["Low"] >= df["Low"].shift(1))
+    df["Inside2"] = df["Inside"] & df["Inside"].shift(1).fillna(False)
+
+    # Pullback context
+    hh20 = df["Close"].rolling(20).max()
+    df["PullbackPct20"] = ((hh20 - df["Close"]) / hh20) * 100.0
+    return df
+
+
+def passes_filters(df: pd.DataFrame, i: int, args) -> bool:
+    """
+    i is the index of day1 (exit day) within df; day2 is i-1 and day3 is i-2.
+    Applies liquidity, volatility, trend, and candle quality filters to day2
+    and contextual checks that involve day3.
+    """
+    if i - 2 < 0:
+        return False
+    d2 = df.iloc[i - 1]
+    d3 = df.iloc[i - 2]
+
+    # Price bounds
+    if not (args.min_price <= d2["Close"] <= args.max_price):
+        return False
+
+    # Liquidity
+    if pd.isna(d2.get("VolSMA20")) or d2["VolSMA20"] < args.min_avg_vol:
+        return False
+    if pd.isna(d2.get("DollarVol20")) or d2["DollarVol20"] < args.min_dollar_vol:
+        return False
+
+    # Volatility band
+    if pd.isna(d2.get("ATRpct")) or not (args.min_atr_pct <= d2["ATRpct"] <= args.max_atr_pct):
+        return False
+    if args.nr7 and not bool(d2.get("NR7", False)):
+        return False
+    if args.inside_2 and not bool(d2.get("Inside2", False)):
+        return False
+
+    # Trend context
+    sma_col = f"SMA{args.above_sma}"
+    if pd.isna(d2.get(sma_col)) or not (d2["Close"] > d2[sma_col]):
+        return False
+    if pd.isna(d2.get("SMA20")) or pd.isna(d2.get("SMA20_5dago")):
+        return False
+    if (d2["SMA20"] - d2["SMA20_5dago"]) <= args.trend_slope:
+        return False
+
+    # Candle quality (day2)
+    if pd.isna(d2.get("BodyPct")) or d2["BodyPct"] < args.body_pct_min:
+        return False
+    if pd.isna(d2.get("UpperWickPct")) or d2["UpperWickPct"] > args.upper_wick_max:
+        return False
+    if pd.isna(d2.get("LowerWickPct")) or d2["LowerWickPct"] > args.lower_wick_max:
+        return False
+
+    # Pullback context (lower is tighter)
+    if pd.isna(d2.get("PullbackPct20")) or d2["PullbackPct20"] > args.pullback_pct_max:
+        return False
+
+    # Gap magnitude between day2 open and day3 close (or reverse for F)
+    if pd.isna(d3.get("Close")) or pd.isna(d2.get("Open")) or d3["Close"] == 0:
+        return False
+    gap_pct = abs((d2["Open"] - d3["Close"]) / d3["Close"]) * 100.0
+    if gap_pct < args.min_gap_pct:
+        return False
+
+    return True
+
+
 def backtest_pattern(
-    df: pd.DataFrame, filter_value: str
+    df: pd.DataFrame, filter_value: str, args
 ) -> list[dict[str, float | pd.Timestamp]]:
     """Return detailed trades meeting the selected Taygetus pattern.
 
@@ -100,6 +204,8 @@ def backtest_pattern(
         One of ``"3E"``, ``"4E"``, ``"3D"`` or ``"4D"``. If the first
         character is a digit, it determines the number of pattern days. ``day1``
         refers to the most recent day (exit day) and numbering counts backwards.
+    args : argparse.Namespace
+        Command line arguments containing filter settings.
 
     Notes
     -----
@@ -119,8 +225,6 @@ def backtest_pattern(
         entry_price = None
         letter = filter_value[1:]           # "E" or "D"
         num = int(filter_value[0])          # 3 or 4
-
-        entry_price = None
 
         if letter == "E":
             # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
@@ -171,7 +275,7 @@ def backtest_pattern(
             # Unrecognized filter
             pass
 
-        if entry_price is not None:
+        if entry_price is not None and passes_filters(df, i, args):
             exit_open = days["day1"]["Open"]
             exit_close = days["day1"]["Close"]
             exit_high = days["day1"]["High"]
@@ -219,6 +323,22 @@ def main() -> None:
         default='3E',
         help='Pattern filter: 3E current Taygetus, 3D descending closes',
     )
+    # === Filtering flags ===
+    parser.add_argument("--min-price", type=float, default=5.0)
+    parser.add_argument("--max-price", type=float, default=200.0)
+    parser.add_argument("--min-avg-vol", dest="min_avg_vol", type=float, default=1_000_000)
+    parser.add_argument("--min-dollar-vol", dest="min_dollar_vol", type=float, default=20_000_000)
+    parser.add_argument("--min-atr-pct", type=float, default=1.0)
+    parser.add_argument("--max-atr-pct", type=float, default=8.0)
+    parser.add_argument("--above-sma", type=int, choices=[20, 50, 200], default=20)
+    parser.add_argument("--trend-slope", type=float, default=0.0)  # SMA20 - SMA20_5dago > this
+    parser.add_argument("--nr7", action="store_true")
+    parser.add_argument("--inside-2", dest="inside_2", action="store_true")
+    parser.add_argument("--min-gap-pct", type=float, default=0.4)
+    parser.add_argument("--body-pct-min", dest="body_pct_min", type=float, default=60.0)
+    parser.add_argument("--upper-wick-max", dest="upper_wick_max", type=float, default=30.0)
+    parser.add_argument("--lower-wick-max", dest="lower_wick_max", type=float, default=40.0)
+    parser.add_argument("--pullback-pct-max", dest="pullback_pct_max", type=float, default=6.0)
     parser.add_argument(
         '--max-out',
         type=int,
@@ -265,7 +385,8 @@ def main() -> None:
         if df.empty:
             print(f"No data for {ticker}")
             continue
-        trades = backtest_pattern(df, args.filter)
+        df = add_indicators(df)
+        trades = backtest_pattern(df, args.filter, args)
         trades = [
             t
             for t in trades
@@ -349,10 +470,13 @@ def main() -> None:
                 if all(days[f"day{n}"]["Close"] > days[f"day{n-1}"]["Close"] for n in range(num_down_days+1, 2, -1)):
                     match = True
 
+            # Reuse filter gate with the true df index (day1 == original_end)
             if match:
-                price = fetch_current_price(ticker)
-                if price is not None:
-                    today_buys.append({"ticker": ticker, "price": price})
+                idx = df.index[df["Date"] == original_end]
+                if len(idx) and passes_filters(df, int(idx[0]), args):
+                    price = fetch_current_price(ticker)
+                    if price is not None:
+                        today_buys.append({"ticker": ticker, "price": price})
 
 
     start_label = original_start.strftime('%Y-%m-%d')

@@ -117,36 +117,59 @@ def backtest_pattern(
         days = {f"day{j + 1}": df.iloc[i - j] for j in range(pattern_length)}
 
         entry_price = None
-        if filter_value == "3E":
-            if (
-                days["day4"]["Close"] > days["day4"]["Open"]
-                and days["day3"]["Close"] > days["day3"]["Open"]
-                and days["day2"]["Open"] > days["day3"]["Close"]
-                and days["day2"]["Close"] < days["day3"]["Open"]
-            ):
+        letter = filter_value[1:]           # "E" or "D"
+        num = int(filter_value[0])          # 3 or 4
+
+        entry_price = None
+
+        if letter == "E":
+            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
+            up_ok = all(
+                days[f"day{k}"]["Close"] > days[f"day{k}"]["Open"]
+                for k in range(num + 1, 2, -1)
+            )
+            # Gap up + red on day2 (your original condition)
+            gap_red_ok = (
+                days["day2"]["Open"] > days["day3"]["Close"] and
+                days["day2"]["Close"] < days["day3"]["Open"]
+            )
+            if up_ok and gap_red_ok:
                 entry_price = days["day2"]["Close"]
-        elif filter_value == "4E":
-            if (
-                days["day5"]["Close"] > days["day5"]["Open"]
-                and days["day4"]["Close"] > days["day4"]["Open"]
-                and days["day3"]["Close"] > days["day3"]["Open"]
-                and days["day2"]["Open"] > days["day3"]["Close"]
-                and days["day2"]["Close"] < days["day3"]["Open"]
-            ):
+
+        elif letter == "F":
+            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
+            down_ok = all(
+                days[f"day{k}"]["Close"] < days[f"day{k}"]["Open"]
+                for k in range(num + 1, 2, -1)
+            )
+            # Gap up + red on day2 (your original condition)
+            gap_green_ok = (
+                days["day2"]["Open"] < days["day3"]["Close"] and
+                days["day2"]["Close"] > days["day3"]["Open"]
+            )
+            if down_ok and gap_green_ok:
                 entry_price = days["day2"]["Close"]
-        elif filter_value == "3D":
-            if days["day4"]["Close"] > days["day3"]["Close"] > days["day2"]["Close"]:
+
+        elif letter == "D":
+            # Strictly decreasing closes across (num+1 .. 2), e.g. for 3D: day4 > day3 > day2
+            down_ok = all(
+                days[f"day{k}"]["Close"] > days[f"day{k-1}"]["Close"]
+                for k in range(num + 1, 1, -1)
+            )
+            if down_ok:
                 entry_price = days["day2"]["Close"]
-        elif filter_value == "4D":
-            if (
-                days["day5"]["Close"]
-                > days["day4"]["Close"]
-                > days["day3"]["Close"]
-                > days["day2"]["Close"]
-            ):
+
+        elif letter == "U":
+            # Strictly decreasing closes across (num+1 .. 2), e.g. for 3D: day4 > day3 > day2
+            down_ok = all(
+                days[f"day{k}"]["Close"] > days[f"day{k-1}"]["Close"]
+                for k in range(num + 1, 1, -1)
+            )
+            if down_ok:
                 entry_price = days["day2"]["Close"]
         else:
-            continue
+            # Unrecognized filter
+            pass
 
         if entry_price is not None:
             exit_open = days["day1"]["Open"]
@@ -165,17 +188,14 @@ def backtest_pattern(
                     "exit_day": days["day1"]["Date"].date(),
                     "entry_price": entry_price,
                     "exit_open": exit_open,
-                    "exit_close": exit_close,
-                    "exit_high": exit_high,
-                    "exit_low": exit_low,
-                    "gain_loss_open": gain_open,
-                    "gain_loss_close": gain_close,
-                    "gain_loss_high": gain_high,
-                    "gain_loss_low": gain_low,
-                    "gain_loss_open_pct": gain_open / entry_price * 100,
-                    "gain_loss_close_pct": gain_close / entry_price * 100,
-                    "gain_loss_high_pct": gain_high / entry_price * 100,
-                    "gain_loss_low_pct": gain_low / entry_price * 100,
+                    "open": gain_open,
+                    "close": gain_close,
+                    "high": gain_high,
+                    "low": gain_low,
+                    "open_pct": gain_open / entry_price * 100,
+                    "close_pct": gain_close / entry_price * 100,
+                    "high_pct": gain_high / entry_price * 100,
+                    "low_pct": gain_low / entry_price * 100,
                 }
             )
     return trades
@@ -195,7 +215,7 @@ def main() -> None:
     )
     parser.add_argument(
         '--filter',
-        choices=['3E', '4E', '3D', '4D'],
+        choices=['3E', '4E', '3D', '4D', '5D','2F','3F', '4F', '5F', '6F', '3U', '4U', '5U', '6U'],
         default='3E',
         help='Pattern filter: 3E current Taygetus, 3D descending closes',
     )
@@ -253,18 +273,18 @@ def main() -> None:
         ]
         count = len(trades)
         avg_open = (
-            sum(t['gain_loss_open_pct'] for t in trades) / count if count else 0.0
+            sum(t['open_pct'] for t in trades) / count if count else 0.0
         )
         avg_close = (
-            sum(t['gain_loss_close_pct'] for t in trades) / count if count else 0.0
+            sum(t['close_pct'] for t in trades) / count if count else 0.0
         )
         avg_high = (
-            sum(t['gain_loss_high_pct'] for t in trades) / count if count else 0.0
+            sum(t['high_pct'] for t in trades) / count if count else 0.0
         )
         avg_low = (
-            sum(t['gain_loss_low_pct'] for t in trades) / count if count else 0.0
+            sum(t['low_pct'] for t in trades) / count if count else 0.0
         )
-        wins = sum(1 for t in trades if t['gain_loss_open_pct'] > 0)
+        wins = sum(1 for t in trades if t['open_pct'] > 0)
         win_pct = wins / count * 100 if count else 0.0
         loss_pct = (count - wins) / count * 100 if count else 0.0
         backtest_days = df[
@@ -296,10 +316,10 @@ def main() -> None:
                 f"Close {avg_close:.2f}%, High {avg_high:.2f}%, Low {avg_low:.2f}%"
             )
         total_trades += count
-        total_return_open += sum(t['gain_loss_open_pct'] for t in trades)
-        total_return_close += sum(t['gain_loss_close_pct'] for t in trades)
-        total_return_high += sum(t['gain_loss_high_pct'] for t in trades)
-        total_return_low += sum(t['gain_loss_low_pct'] for t in trades)
+        total_return_open += sum(t['open_pct'] for t in trades)
+        total_return_close += sum(t['close_pct'] for t in trades)
+        total_return_high += sum(t['high_pct'] for t in trades)
+        total_return_low += sum(t['low_pct'] for t in trades)
         total_wins += wins
 
         if is_today_end and not df[df["Date"] == original_end].empty:
@@ -307,42 +327,33 @@ def main() -> None:
             if len(recent) == pattern_length - 1:
                 days = {f"day{j+2}": recent.iloc[-(j+1)] for j in range(pattern_length - 1)}
                 match = False
-                if args.filter == "3E":
-                    if (
-                        days["day4"]["Close"] > days["day4"]["Open"]
-                        and days["day3"]["Close"] > days["day3"]["Open"]
-                        and days["day2"]["Open"] > days["day3"]["Close"]
-                        and days["day2"]["Close"] < days["day3"]["Open"]
-                    ):
+            if args.filter in {"3E", "4E"}:
+                num_up_days = int(args.filter[0])  # 3 or 4
+                # Check consecutive green candles
+                if all(days[f"day{n}"]["Close"] > days[f"day{n}"]["Open"] for n in range(num_up_days+1, 1, -1)):
+                    # Gap up and red candle on last day before entry
+                    if days["day2"]["Open"] > days["day3"]["Close"] and days["day2"]["Close"] < days["day3"]["Open"]:
                         match = True
-                elif args.filter == "4E":
-                    if (
-                        days["day5"]["Close"] > days["day5"]["Open"]
-                        and days["day4"]["Close"] > days["day4"]["Open"]
-                        and days["day3"]["Close"] > days["day3"]["Open"]
-                        and days["day2"]["Open"] > days["day3"]["Close"]
-                        and days["day2"]["Close"] < days["day3"]["Open"]
-                    ):
+            
+            elif args.filter in {"2F", "3F", "4F"}:
+                num_down_days = int(args.filter[0])  # 3 or 4
+                # Check consecutive green candles
+                if all(days[f"day{n}"]["Close"] < days[f"day{n}"]["Open"] for n in range(num_down_days+1, 1, -1)):
+                    # Gap up and red candle on last day before entry
+                    if days["day2"]["Open"] < days["day3"]["Close"] and days["day2"]["Close"] > days["day3"]["Open"]:
                         match = True
-                elif args.filter == "3D":
-                    if (
-                        days["day4"]["Close"]
-                        > days["day3"]["Close"]
-                        > days["day2"]["Close"]
-                    ):
-                        match = True
-                elif args.filter == "4D":
-                    if (
-                        days["day5"]["Close"]
-                        > days["day4"]["Close"]
-                        > days["day3"]["Close"]
-                        > days["day2"]["Close"]
-                    ):
-                        match = True
-                if match:
-                    price = fetch_current_price(ticker)
-                    if price is not None:
-                        today_buys.append({"ticker": ticker, "price": price})
+
+            elif args.filter in {"3D", "4D", "5D"}:
+                num_down_days = int(args.filter[0])  # 3 or 4
+                # Check consecutive closes decreasing
+                if all(days[f"day{n}"]["Close"] > days[f"day{n-1}"]["Close"] for n in range(num_down_days+1, 1, -1)):
+                    match = True
+
+            if match:
+                price = fetch_current_price(ticker)
+                if price is not None:
+                    today_buys.append({"ticker": ticker, "price": price})
+
 
     start_label = original_start.strftime('%Y-%m-%d')
     end_label = original_end.strftime('%Y-%m-%d')

@@ -346,7 +346,7 @@ def main() -> None:
             elif args.filter in {"3D", "4D", "5D"}:
                 num_down_days = int(args.filter[0])  # 3 or 4
                 # Check consecutive closes decreasing
-                if all(days[f"day{n}"]["Close"] > days[f"day{n-1}"]["Close"] for n in range(num_down_days+1, 1, -1)):
+                if all(days[f"day{n}"]["Close"] > days[f"day{n-1}"]["Close"] for n in range(num_down_days+1, 2, -1)):
                     match = True
 
             if match:

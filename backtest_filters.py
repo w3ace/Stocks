@@ -80,42 +80,73 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def passes_filters(df: pd.DataFrame, i: int, args) -> bool:
-    """Apply liquidity, volatility, trend and candle filters to day2 (i-1)."""
+def passes_filters(
+    df: pd.DataFrame, i: int, args, enabled: list[str] | set[str] | None = None
+) -> bool:
+    """Apply selected indicator filters to ``day2`` (``i-1``).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Daily price data with indicators.
+    i : int
+        Index of the exit day (day1). ``day2`` is ``i-1``.
+    args : argparse.Namespace
+        Command line arguments containing filter settings.
+    enabled : Iterable[str] | None
+        Names of indicator filters to enforce. If ``None`` or empty, no
+        indicator-based filtering is applied.
+    """
+    if not enabled:
+        return True
+    enabled = set(enabled)
     if i - 2 < 0:
         return False
     d2 = df.iloc[i - 1]
     d3 = df.iloc[i - 2]
-    if not (args.min_price <= d2["Close"] <= args.max_price):
+    if "price" in enabled and not (args.min_price <= d2["Close"] <= args.max_price):
         return False
-    if pd.isna(d2.get("VolSMA20")) or d2["VolSMA20"] < args.min_avg_vol:
+    if "avg_vol" in enabled and (pd.isna(d2.get("VolSMA20")) or d2["VolSMA20"] < args.min_avg_vol):
         return False
-    if pd.isna(d2.get("DollarVol20")) or d2["DollarVol20"] < args.min_dollar_vol:
+    if "dollar_vol" in enabled and (pd.isna(d2.get("DollarVol20")) or d2["DollarVol20"] < args.min_dollar_vol):
         return False
-    if pd.isna(d2.get("ATRpct")) or not (args.min_atr_pct <= d2["ATRpct"] <= args.max_atr_pct):
+    if "atr_pct" in enabled and (
+        pd.isna(d2.get("ATRpct")) or not (args.min_atr_pct <= d2["ATRpct"] <= args.max_atr_pct)
+    ):
         return False
-    if args.nr7 and not bool(d2.get("NR7", False)):
+    if "nr7" in enabled and not bool(d2.get("NR7", False)):
         return False
-    if args.inside_2 and not bool(d2.get("Inside2", False)):
+    if "inside_2" in enabled and not bool(d2.get("Inside2", False)):
         return False
-    sma_col = f"SMA{args.above_sma}"
-    if pd.isna(d2.get(sma_col)) or not (d2["Close"] > d2[sma_col]):
+    if "above_sma" in enabled:
+        sma_col = f"SMA{args.above_sma}"
+        if pd.isna(d2.get(sma_col)) or not (d2["Close"] > d2[sma_col]):
+            return False
+    if "trend_slope" in enabled:
+        if pd.isna(d2.get("SMA20")) or pd.isna(d2.get("SMA20_5dago")):
+            return False
+        if (d2["SMA20"] - d2["SMA20_5dago"]) <= args.trend_slope:
+            return False
+    if "body_pct" in enabled and (
+        pd.isna(d2.get("BodyPct")) or d2["BodyPct"] < args.body_pct_min
+    ):
         return False
-    if pd.isna(d2.get("SMA20")) or pd.isna(d2.get("SMA20_5dago")):
+    if "upper_wick" in enabled and (
+        pd.isna(d2.get("UpperWickPct")) or d2["UpperWickPct"] > args.upper_wick_max
+    ):
         return False
-    if (d2["SMA20"] - d2["SMA20_5dago"]) <= args.trend_slope:
+    if "lower_wick" in enabled and (
+        pd.isna(d2.get("LowerWickPct")) or d2["LowerWickPct"] > args.lower_wick_max
+    ):
         return False
-    if pd.isna(d2.get("BodyPct")) or d2["BodyPct"] < args.body_pct_min:
+    if "pullback_pct" in enabled and (
+        pd.isna(d2.get("PullbackPct20")) or d2["PullbackPct20"] > args.pullback_pct_max
+    ):
         return False
-    if pd.isna(d2.get("UpperWickPct")) or d2["UpperWickPct"] > args.upper_wick_max:
-        return False
-    if pd.isna(d2.get("LowerWickPct")) or d2["LowerWickPct"] > args.lower_wick_max:
-        return False
-    if pd.isna(d2.get("PullbackPct20")) or d2["PullbackPct20"] > args.pullback_pct_max:
-        return False
-    if pd.isna(d3.get("Close")) or pd.isna(d2.get("Open")) or d3["Close"] == 0:
-        return False
-    gap_pct = abs((d2["Open"] - d3["Close"]) / d3["Close"]) * 100.0
-    if gap_pct < args.min_gap_pct:
-        return False
+    if "gap" in enabled:
+        if pd.isna(d3.get("Close")) or pd.isna(d2.get("Open")) or d3["Close"] == 0:
+            return False
+        gap_pct = abs((d2["Open"] - d3["Close"]) / d3["Close"]) * 100.0
+        if gap_pct < args.min_gap_pct:
+            return False
     return True

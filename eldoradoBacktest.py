@@ -508,7 +508,7 @@ def main() -> None:
         else:
             last_complete_day = (now_eastern - BDay(1)).date()
         print(last_day,last_complete_day,end_date)
-        if last_day == last_complete_day:
+        if end_date == last_complete_day:
             top_tickers = sorted(
                 set(surpass_by_profit) | set(surpass_by_top_profit) | set(surpass_by_success)
             )

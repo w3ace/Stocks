@@ -493,14 +493,22 @@ def main() -> None:
                 " ".join(surpass_by_success),
             )
 
-        # If analysis ended on the previous trading day, check for today's buys
+        # If analysis ended on the last complete trading day, check for today's buys
         today_buys: list[dict[str, float | str | pd.Timestamp]] = []
         end_date = end.tz_convert("US/Eastern").date() if end.tzinfo else end.date()
         start_date = start.tz_convert("US/Eastern").date() if start.tzinfo else start.date()
         last_day = end_date if end_date == start_date else (pd.Timestamp(end_date) - pd.Timedelta(days=1)).date()
-        prev_trading_day = (pd.Timestamp.now(tz="US/Eastern") - BDay(2)).date()
-        print(last_day,prev_trading_day,end_date)
-        if last_day == prev_trading_day:
+
+        now_eastern = pd.Timestamp.now(tz="US/Eastern")
+        market_close = pd.Timestamp("16:00", tz="US/Eastern").time()
+        if now_eastern.dayofweek >= 5:
+            last_complete_day = (now_eastern - BDay(1)).date()
+        elif now_eastern.time() >= market_close:
+            last_complete_day = now_eastern.date()
+        else:
+            last_complete_day = (now_eastern - BDay(1)).date()
+        print(last_day,last_complete_day,end_date)
+        if last_day == last_complete_day:
             top_tickers = sorted(
                 set(surpass_by_profit) | set(surpass_by_top_profit) | set(surpass_by_success)
             )

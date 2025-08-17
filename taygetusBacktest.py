@@ -67,7 +67,35 @@ def backtest_pattern(
         letter = filter_value[1:]           # "E" or "D"
         num = int(filter_value[0])          # 3 or 4
 
-        if letter == "E":
+        if letter == "A":
+            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
+            up_ok = all(
+                days[k-1]["Close"] > days[k]["Close"]
+                for k in range(num + 1, 2, -1)
+            )
+            # Gap up + red on day2 (your original condition)
+            gap_red_ok = (
+                days[2]["Open"] > days[3]["Close"] and
+                days[2]["Close"] < days[3]["Open"]
+            )
+            if up_ok and gap_red_ok:
+                entry_price = days[2]["Close"]
+
+        elif letter == "B":
+            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
+            up_ok = all(
+                days[k-1]["Open"] > days[k]["Open"]
+                for k in range(num + 1, 2, -1)
+            )
+            # Gap up + red on day2 (your original condition)
+            gap_red_ok = (
+                days[2]["Open"] > days[3]["Close"] and
+                days[2]["Close"] < days[3]["Open"]
+            )
+            if up_ok and gap_red_ok:
+                entry_price = days[num]["Close"]
+
+        elif letter == "F":
             # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
             up_ok = all(
                 days[k]["Close"] > days[k]["Open"]
@@ -79,7 +107,7 @@ def backtest_pattern(
                 days[2]["Close"] < days[3]["Open"]
             )
             if up_ok and gap_red_ok:
-                entry_price = days[2]["Close"]
+                entry_price = days[num]["Close"]
 
         elif letter == "F":
             # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
@@ -89,8 +117,8 @@ def backtest_pattern(
             )
             # Gap up + red on day2 (your original condition)
             gap_green_ok = (
-                days[2]["Open"] < days[3]["Close"] and
-                days[2]["Close"] > days[3]["Open"]
+                days[num-1]["Open"] < days[num]["Close"] and
+                days[num-1]["Close"] > days[num]["Open"]
             )
             if down_ok and gap_green_ok:
                 entry_price = days[2]["Close"]
@@ -162,7 +190,7 @@ def main() -> None:
     )
     parser.add_argument(
         '--filter',
-        choices=['3E', '4E', '3D', '4D', '5D','2F','3F', '4F', '5F', '6F', '3U', '4U', '5U', '6U'],
+        choices=['3A','4A','3B','4B','3E', '4E', '3D', '4D', '5D','2F','3F', '4F', '5F', '6F', '3U', '4U', '5U', '6U'],
         default='3E',
         help='Pattern filter: 3E current Taygetus, 3D descending closes',
     )
@@ -313,10 +341,26 @@ def main() -> None:
             if len(recent) == pattern_length - 1:
                 days = {j + 2: recent.iloc[-(j + 1)] for j in range(pattern_length - 1)}
                 match = False
-            if args.filter in {"3E", "4E"}:
+            if args.filter in {"2E", "3E", "4E"}:
                 num_up_days = int(args.filter[0])  # 3 or 4
                 # Check consecutive green candles
-                if all(days[n]["Close"] > days[n]["Open"] for n in range(num_up_days + 1, 1, -1)):
+                if all(days[n]["Close"] > days[n]["Open"] for n in range(num_up_days + 1, 2, -1)):
+                    # Gap up and red candle on last day before entry
+                    if days[2]["Open"] > days[3]["Close"] and days[2]["Close"] < days[3]["Open"]:
+                        match = True
+
+            elif args.filter in {"2A", "3A", "4A"}:
+                num_up_days = int(args.filter[0])  # 3 or 4
+                # Check consecutive green candles
+                if all(days[n-1]["Close"] > days[n]["Close"] for n in range(num_up_days + 1, 2, -1)):
+                    # Gap up and red candle on last day before entry
+                    if days[2]["Open"] > days[3]["Close"] and days[2]["Close"] < days[3]["Open"]:
+                        match = True
+
+            elif args.filter in {"2B", "3B", "4B"}:
+                num_up_days = int(args.filter[0])  # 3 or 4
+                # Check consecutive green candles
+                if all(days[n-1]["Close"] > days[n]["Close"] for n in range(num_up_days + 1, 2, -1)):
                     # Gap up and red candle on last day before entry
                     if days[2]["Open"] > days[3]["Close"] and days[2]["Close"] < days[3]["Open"]:
                         match = True
@@ -324,12 +368,18 @@ def main() -> None:
             elif args.filter in {"2F", "3F", "4F"}:
                 num_down_days = int(args.filter[0])  # 3 or 4
                 # Check consecutive green candles
-                if all(days[n]["Close"] < days[n]["Open"] for n in range(num_down_days + 1, 1, -1)):
+                if all(days[n]["Close"] < days[n]["Open"] for n in range(num_down_days + 1, 2, -1)):
                     # Gap up and red candle on last day before entry
                     if days[2]["Open"] < days[3]["Close"] and days[2]["Close"] > days[3]["Open"]:
                         match = True
 
-            elif args.filter in {"3D", "4D", "5D"}:
+            elif args.filter in {"2U", "3U", "4U"}:
+                num_down_days = int(args.filter[0])  # 3 or 4
+                # Check consecutive closes decreasing
+                if all(days[n]["Close"] < days[n - 1]["Close"] for n in range(num_down_days + 1, 2, -1)):
+                    match = True
+
+            elif args.filter in {"2D", "3D", "4D", "5D"}:
                 num_down_days = int(args.filter[0])  # 3 or 4
                 # Check consecutive closes decreasing
                 if all(days[n]["Close"] > days[n - 1]["Close"] for n in range(num_down_days + 1, 2, -1)):

@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+from dataclasses import dataclass
 
 import pandas as pd
 import yfinance as yf
@@ -30,149 +31,157 @@ def fetch_current_price(ticker: str) -> float | None:
     return data["Close"].iloc[-1].item()
 
 
+@dataclass
+class TaygetusPattern:
+    """Structured representation of a Taygetus pattern string."""
+
+    length: int
+    pattern_metric: str
+    pattern_dir: str
+    signal_metric: str
+    signal_dir: str | None = None
 
 
-def backtest_pattern(
-    df: pd.DataFrame, filter_value: str, args
-) -> list[dict[str, float | pd.Timestamp]]:
-    """Return detailed trades meeting the selected Taygetus pattern.
+def parse_pattern(pattern: str) -> TaygetusPattern:
+    """Parse a pattern string into its components.
 
     Parameters
     ----------
-    df : pd.DataFrame
-        Daily price data.
-    filter_value : str
-        One of ``"3E"``, ``"4E"``, ``"3D"`` or ``"4D"``. If the first
-        character is a digit, it determines the number of pattern days. ``1``
-        refers to the most recent day (exit day) and numbering counts backwards.
-    args : argparse.Namespace
-        Command line arguments containing filter settings.
-
-    Notes
-    -----
-    Trades are entered at day 2 close and evaluated at day 1 open, close,
-    high and low. Gain/loss percentages are calculated for each of these
-    potential exits.
+    pattern : str
+        Pattern string such as ``"3OUH"``.
     """
 
-    pattern_length = (
-        int(filter_value[0]) + 1 if filter_value and filter_value[0].isdigit() else 4
-    )
+    if not pattern or len(pattern) < 4:
+        raise ValueError("pattern must be at least 4 characters long")
+    length = int(pattern[0])
+    patt_metric = pattern[1].upper()
+    patt_dir = pattern[2].upper()
+    sig_metric = pattern[3].upper()
+    sig_dir = pattern[4].upper() if len(pattern) > 4 else None
+    if patt_metric not in "OCD" or patt_dir not in "UD":
+        raise ValueError("invalid pattern or direction")
+    if sig_metric not in "OCDEH":
+        raise ValueError("invalid signal")
+    if sig_metric in "OCD" and (sig_dir not in "UD"):
+        raise ValueError("signal direction required for O/C/D")
+    if sig_metric in "EH" and sig_dir and sig_dir not in "UD":
+        raise ValueError("invalid signal direction")
+    return TaygetusPattern(length, patt_metric, patt_dir, sig_metric, sig_dir)
+
+
+def _check_pattern(days: dict[int, pd.Series], pat: TaygetusPattern) -> bool:
+    """Verify the pattern portion across historical days."""
+
+    num = pat.length
+    for k in range(num + 1, 2, -1):
+        newer = days[k - 1]
+        older = days[k]
+        if pat.pattern_metric == "O":
+            if pat.pattern_dir == "U" and not (older["Open"] < newer["Open"]):
+                return False
+            if pat.pattern_dir == "D" and not (older["Open"] > newer["Open"]):
+                return False
+        elif pat.pattern_metric == "C":
+            if pat.pattern_dir == "U" and not (older["Close"] < newer["Close"]):
+                return False
+            if pat.pattern_dir == "D" and not (older["Close"] > newer["Close"]):
+                return False
+        elif pat.pattern_metric == "D":
+            if pat.pattern_dir == "U" and not (older["Close"] > older["Open"]):
+                return False
+            if pat.pattern_dir == "D" and not (older["Close"] < older["Open"]):
+                return False
+    return True
+
+
+def _check_signal(days: dict[int, pd.Series], pat: TaygetusPattern) -> bool:
+    """Check the entry day signal."""
+
+    d2 = days[2]
+    d3 = days[3]
+    sig = pat.signal_metric
+    dir = pat.signal_dir
+    if sig == "O":
+        if dir == "U":
+            return d2["Open"] > d3["Close"]
+        else:
+            return d2["Open"] < d3["Close"]
+    if sig == "C":
+        if dir == "U":
+            return d2["Close"] > d3["Close"]
+        else:
+            return d2["Close"] < d3["Close"]
+    if sig == "D":
+        if dir == "U":
+            return d2["Close"] > d2["Open"]
+        else:
+            return d2["Close"] < d2["Open"]
+    if sig == "E":
+        bull = d2["Open"] < d3["Close"] and d2["Close"] > d3["Open"]
+        bear = d2["Open"] > d3["Close"] and d2["Close"] < d3["Open"]
+        if dir == "U":
+            return bull
+        if dir == "D":
+            return bear
+        return bull or bear
+    if sig == "H":
+        inside = (
+            min(d3["Open"], d3["Close"]) <= d2["Open"] <= max(d3["Open"], d3["Close"])
+            and min(d3["Open"], d3["Close"]) <= d2["Close"] <= max(d3["Open"], d3["Close"])
+        )
+        if not inside:
+            return False
+        if dir == "U":
+            return d2["Close"] > d2["Open"]
+        if dir == "D":
+            return d2["Close"] < d2["Open"]
+        return True
+    return False
+
+
+
+
+def backtest_pattern(
+    df: pd.DataFrame, pattern: str, args
+) -> list[dict[str, float | pd.Timestamp]]:
+    """Return detailed trades meeting the selected Taygetus pattern."""
+
+    pat = parse_pattern(pattern)
+    pattern_length = pat.length + 1
 
     trades: list[dict[str, float | pd.Timestamp]] = []
     for i in range(pattern_length - 1, len(df)):
         days = {j + 1: df.iloc[i - j] for j in range(pattern_length)}
 
-        entry_price = None
-        letter = filter_value[1:]           # "E" or "D"
-        num = int(filter_value[0])          # 3 or 4
-
-        if letter == "A":
-            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
-            up_ok = all(
-                days[k-1]["Close"] > days[k]["Close"]
-                for k in range(num + 1, 2, -1)
-            )
-            # Gap up + red on day2 (your original condition)
-            gap_red_ok = (
-                days[2]["Open"] > days[3]["Close"] and
-                days[2]["Close"] < days[3]["Open"]
-            )
-            if up_ok and gap_red_ok:
+        if _check_pattern(days, pat) and _check_signal(days, pat):
+            if not args.indicators or passes_filters(df, i, args, args.indicators):
                 entry_price = days[2]["Close"]
+                exit_open = days[1]["Open"]
+                exit_close = days[1]["Close"]
+                exit_high = days[1]["High"]
+                exit_low = days[1]["Low"]
 
-        elif letter == "B":
-            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
-            up_ok = all(
-                days[k-1]["Open"] > days[k]["Open"]
-                for k in range(num + 1, 2, -1)
-            )
-            # Gap up + red on day2 (your original condition)
-            gap_red_ok = (
-                days[2]["Open"] > days[3]["Close"] and
-                days[2]["Close"] < days[3]["Open"]
-            )
-            if up_ok and gap_red_ok:
-                entry_price = days[num]["Close"]
+                gain_open = exit_open - entry_price
+                gain_close = exit_close - entry_price
+                gain_high = exit_high - entry_price
+                gain_low = exit_low - entry_price
 
-        elif letter == "F":
-            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
-            up_ok = all(
-                days[k]["Close"] > days[k]["Open"]
-                for k in range(num + 1, 2, -1)
-            )
-            # Gap up + red on day2 (your original condition)
-            gap_red_ok = (
-                days[2]["Open"] > days[3]["Close"] and
-                days[2]["Close"] < days[3]["Open"]
-            )
-            if up_ok and gap_red_ok:
-                entry_price = days[num]["Close"]
-
-        elif letter == "F":
-            # Consecutive green candles on days (num+1 .. 3), e.g. for 3E: day4, day3
-            down_ok = all(
-                days[k]["Close"] < days[k]["Open"]
-                for k in range(num + 1, 2, -1)
-            )
-            # Gap up + red on day2 (your original condition)
-            gap_green_ok = (
-                days[num-1]["Open"] < days[num]["Close"] and
-                days[num-1]["Close"] > days[num]["Open"]
-            )
-            if down_ok and gap_green_ok:
-                entry_price = days[2]["Close"]
-
-        elif letter == "D":
-            # Strictly decreasing closes across (num+1 .. 2), e.g. for 3D: day4 > day3 > day2
-            down_ok = all(
-                days[k]["Close"] > days[k - 1]["Close"]
-                for k in range(num + 1, 1, -1)
-            )
-            if down_ok:
-                entry_price = days[2]["Close"]
-
-        elif letter == "U":
-            # Strictly decreasing closes across (num+1 .. 2), e.g. for 3D: day4 > day3 > day2
-            down_ok = all(
-                days[k]["Close"] > days[k - 1]["Close"]
-                for k in range(num + 1, 1, -1)
-            )
-            if down_ok:
-                entry_price = days[2]["Close"]
-        else:
-            # Unrecognized filter
-            pass
-
-        if entry_price is not None and (
-            not args.indicators or passes_filters(df, i, args, args.indicators)
-        ):
-            exit_open = days[1]["Open"]
-            exit_close = days[1]["Close"]
-            exit_high = days[1]["High"]
-            exit_low = days[1]["Low"]
-
-            gain_open = exit_open - entry_price
-            gain_close = exit_close - entry_price
-            gain_high = exit_high - entry_price
-            gain_low = exit_low - entry_price
-
-            trades.append(
-                {
-                    "entry_day": days[2]["Date"].date(),
-                    "exit_day": days[1]["Date"].date(),
-                    "entry_price": entry_price,
-                    "exit_open": exit_open,
-                    "open": gain_open,
-                    "close": gain_close,
-                    "high": gain_high,
-                    "low": gain_low,
-                    "open_pct": gain_open / entry_price * 100,
-                    "close_pct": gain_close / entry_price * 100,
-                    "high_pct": gain_high / entry_price * 100,
-                    "low_pct": gain_low / entry_price * 100,
-                }
-            )
+                trades.append(
+                    {
+                        "entry_day": days[2]["Date"].date(),
+                        "exit_day": days[1]["Date"].date(),
+                        "entry_price": entry_price,
+                        "exit_open": exit_open,
+                        "open": gain_open,
+                        "close": gain_close,
+                        "high": gain_high,
+                        "low": gain_low,
+                        "open_pct": gain_open / entry_price * 100,
+                        "close_pct": gain_close / entry_price * 100,
+                        "high_pct": gain_high / entry_price * 100,
+                        "low_pct": gain_low / entry_price * 100,
+                    }
+                )
     return trades
 
 
@@ -189,10 +198,9 @@ def main() -> None:
         help='Print per-ticker or per-trade summary to console in an ASCII table',
     )
     parser.add_argument(
-        '--filter',
-        choices=['3A','4A','3B','4B','3E', '4E', '3D', '4D', '5D','2F','3F', '4F', '5F', '6F', '3U', '4U', '5U', '6U'],
-        default='3E',
-        help='Pattern filter: 3E current Taygetus, 3D descending closes',
+        '--pattern',
+        default='3OUH',
+        help='Pattern string e.g. 3OUH or 4DUED',
     )
     parser.add_argument(
         '--indicators',
@@ -241,9 +249,8 @@ def main() -> None:
 
     tickers = expand_ticker_args(args.ticker)
 
-    pattern_length = (
-        int(args.filter[0]) + 1 if args.filter and args.filter[0].isdigit() else 4
-    )
+    pat = parse_pattern(args.pattern)
+    pattern_length = pat.length + 1
 
     if args.start:
         start = pd.to_datetime(args.start)
@@ -279,7 +286,7 @@ def main() -> None:
             continue
         if args.indicators:
             df = add_indicators(df)
-        trades = backtest_pattern(df, args.filter, args)
+        trades = backtest_pattern(df, args.pattern, args)
         trades = [
             t
             for t in trades
@@ -337,68 +344,22 @@ def main() -> None:
         total_wins += wins
 
         if is_today_end and not df[df["Date"] == original_end].empty:
-            recent = df[df["Date"] <= original_end].tail(pattern_length - 1)
-            if len(recent) == pattern_length - 1:
-                days = {j + 2: recent.iloc[-(j + 1)] for j in range(pattern_length - 1)}
-                match = False
-            if args.filter in {"2E", "3E", "4E"}:
-                num_up_days = int(args.filter[0])  # 3 or 4
-                # Check consecutive green candles
-                if all(days[n]["Close"] > days[n]["Open"] for n in range(num_up_days + 1, 2, -1)):
-                    # Gap up and red candle on last day before entry
-                    if days[2]["Open"] > days[3]["Close"] and days[2]["Close"] < days[3]["Open"]:
-                        match = True
-
-            elif args.filter in {"2A", "3A", "4A"}:
-                num_up_days = int(args.filter[0])  # 3 or 4
-                # Check consecutive green candles
-                if all(days[n-1]["Close"] > days[n]["Close"] for n in range(num_up_days + 1, 2, -1)):
-                    # Gap up and red candle on last day before entry
-                    if days[2]["Open"] > days[3]["Close"] and days[2]["Close"] < days[3]["Open"]:
-                        match = True
-
-            elif args.filter in {"2B", "3B", "4B"}:
-                num_up_days = int(args.filter[0])  # 3 or 4
-                # Check consecutive green candles
-                if all(days[n-1]["Close"] > days[n]["Close"] for n in range(num_up_days + 1, 2, -1)):
-                    # Gap up and red candle on last day before entry
-                    if days[2]["Open"] > days[3]["Close"] and days[2]["Close"] < days[3]["Open"]:
-                        match = True
-
-            elif args.filter in {"2F", "3F", "4F"}:
-                num_down_days = int(args.filter[0])  # 3 or 4
-                # Check consecutive green candles
-                if all(days[n]["Close"] < days[n]["Open"] for n in range(num_down_days + 1, 2, -1)):
-                    # Gap up and red candle on last day before entry
-                    if days[2]["Open"] < days[3]["Close"] and days[2]["Close"] > days[3]["Open"]:
-                        match = True
-
-            elif args.filter in {"2U", "3U", "4U"}:
-                num_down_days = int(args.filter[0])  # 3 or 4
-                # Check consecutive closes decreasing
-                if all(days[n]["Close"] < days[n - 1]["Close"] for n in range(num_down_days + 1, 2, -1)):
-                    match = True
-
-            elif args.filter in {"2D", "3D", "4D", "5D"}:
-                num_down_days = int(args.filter[0])  # 3 or 4
-                # Check consecutive closes decreasing
-                if all(days[n]["Close"] > days[n - 1]["Close"] for n in range(num_down_days + 1, 2, -1)):
-                    match = True
-
-            # Reuse filter gate with the true df index (1 == original_end)
-            if match:
-                idx = df.index[df["Date"] == original_end]
-                if len(idx) and (
-                    not args.indicators or passes_filters(df, int(idx[0]), args, args.indicators)
-                ):
-                    price = fetch_current_price(ticker)
-                    if price is not None:
-                        today_buys.append({"ticker": ticker, "price": price})
+            recent = df[df["Date"] <= original_end].tail(pattern_length)
+            if len(recent) == pattern_length:
+                days = {j + 1: recent.iloc[-(j + 1)] for j in range(pattern_length)}
+                if _check_pattern(days, pat) and _check_signal(days, pat):
+                    idx = df.index[df["Date"] == original_end]
+                    if len(idx) and (
+                        not args.indicators or passes_filters(df, int(idx[0]), args, args.indicators)
+                    ):
+                        price = fetch_current_price(ticker)
+                        if price is not None:
+                            today_buys.append({"ticker": ticker, "price": price})
 
 
     start_label = original_start.strftime('%Y-%m-%d')
     end_label = original_end.strftime('%Y-%m-%d')
-    file_label = f"{start_label}-{end_label}-{args.filter}.csv"
+    file_label = f"{start_label}-{end_label}-{args.pattern}.csv"
     trades_dir = Path('trades') / 'taygetus'
     tickers_dir = Path('tickers') / 'taygetus'
     trades_dir.mkdir(parents=True, exist_ok=True)

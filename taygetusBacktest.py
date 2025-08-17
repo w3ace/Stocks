@@ -430,6 +430,25 @@ def main() -> None:
             f"Average Gain/Loss Open {overall_open:.2f}%, Close {overall_close:.2f}%, "
             f"High {overall_high:.2f}%, Low {overall_low:.2f}%"
         )
+
+        # Adjusted summary excluding top/bottom 5% of trades by open_pct
+        trim = int(len(trades_df) * 0.05)
+        if trim > 0:
+            trimmed = trades_df.sort_values("open_pct").iloc[trim:-trim]
+        else:
+            trimmed = trades_df
+        if not trimmed.empty:
+            adj_trades = len(trimmed)
+            adj_open = trimmed["open_pct"].mean()
+            adj_close = trimmed["close_pct"].mean()
+            adj_high = trimmed["high_pct"].mean()
+            adj_low = trimmed["low_pct"].mean()
+            adj_success = (trimmed["open_pct"] > 0).mean() * 100
+            print(
+                f"Overall Adjusted: Trades {adj_trades}, Success Rate {adj_success:.2f}%, "
+                f"Average Gain/Loss Open {adj_open:.2f}%, Close {adj_close:.2f}%, "
+                f"High {adj_high:.2f}%, Low {adj_low:.2f}%"
+            )
     else:
         print("No trades found across tickers")
 

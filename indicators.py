@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from stock_functions import period_to_start_end
@@ -16,6 +17,55 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["TrendSlope"] = df["SMA20"] - df["SMA20_5dago"]
     df["GapPct"] = ((df["Open"] - df["PrevClose"]) / df["PrevClose"]).abs() * 100.0
+
+    rng = (df["High"] - df["Low"]).replace(0, np.nan)
+    body = (df["Close"] - df["Open"]).abs()
+    upper = df["High"] - df[["Open", "Close"]].max(axis=1)
+    lower = df[["Open", "Close"]].min(axis=1) - df["Low"]
+
+    df["BodyAbs"] = body
+    df["UpperAbs"] = upper
+    df["LowerAbs"] = lower
+    df["PrevOpen"] = df["Open"].shift(1)
+    df["PrevClose"] = df["Close"].shift(1)
+    df["PrevBodyAbs"] = df["BodyAbs"].shift(1)
+    df["PrevMidBody"] = (df["PrevOpen"] + df["PrevClose"]) / 2
+
+    min_body_pct = 10.0
+    df["Hammer"] = (
+        (lower >= 2 * body)
+        & (upper <= 0.25 * body)
+        & (100 * body / rng >= min_body_pct)
+    )
+
+    df["InvertedHammer"] = (
+        (upper >= 2 * body)
+        & (lower <= 0.25 * body)
+        & (100 * body / rng >= min_body_pct)
+    )
+
+    doji_body_pct = 10.0
+    df["Doji"] = 100 * body / rng <= doji_body_pct
+
+    df["BullMarubozu"] = (
+        (df["Close"] > df["Open"])
+        & (100 * body / rng >= 70.0)
+        & (100 * upper / rng <= 5.0)
+        & (100 * lower / rng <= 5.0)
+    )
+    df["BearMarubozu"] = (
+        (df["Close"] < df["Open"])
+        & (100 * body / rng >= 70.0)
+        & (100 * upper / rng <= 5.0)
+        & (100 * lower / rng <= 5.0)
+    )
+
+    df["CandlePattern"] = ""
+    df.loc[df["Hammer"], "CandlePattern"] = "Hammer"
+    df.loc[df["InvertedHammer"], "CandlePattern"] = "InvertedHammer"
+    df.loc[df["BullMarubozu"], "CandlePattern"] = "BullMarubozu"
+    df.loc[df["BearMarubozu"], "CandlePattern"] = "BearMarubozu"
+    df.loc[df["Doji"], "CandlePattern"] = "Doji"
     return df
 
 
@@ -89,6 +139,10 @@ def main() -> None:
         df = df[(df["Date"] >= start) & (df["Date"] <= end)]
         cols = [
             "Date",
+            "Open",
+            "High",
+            "Low",
+            "Close",
             "VolSMA20",
             "DollarVol20",
             "ATRpct",
@@ -104,6 +158,7 @@ def main() -> None:
             "BodyPct",
             "UpperWickPct",
             "LowerWickPct",
+            "CandlePattern",
         ]
         data = df[cols].copy()
         dest = outdir / f"{ticker}.csv"

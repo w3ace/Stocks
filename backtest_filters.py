@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 
 CACHE_DIR = Path(__file__).resolve().parent / "yfinance_cache"
+INDICATOR_DIR = Path(__file__).resolve().parent / "datasets" / "indicators"
 
 
 def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp, cache_tag: str, subdir: str) -> pd.DataFrame:
@@ -78,6 +79,48 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     hh20 = df["Close"].rolling(20).max()
     df["PullbackPct20"] = ((hh20 - df["Close"]) / hh20) * 100.0
     return df
+
+
+def merge_indicator_data(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, bool]:
+    """Attach pre-computed indicator data for ``ticker`` to ``df``.
+
+    The indicator data is read from ``datasets/indicators/<ticker>.csv``. If the
+    file is missing, a warning is printed and the original ``df`` is returned
+    unchanged along with ``False`` to signal that indicators are unavailable.
+    When the latest day in ``df`` is newer than the indicator dataset, the most
+    recent indicator values are forward-filled to cover the gap.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Daily price data.
+    ticker : str
+        Ticker symbol used to locate the indicator dataset.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, bool]
+        The merged DataFrame and a flag indicating whether indicators were
+        successfully loaded.
+    """
+    dest = INDICATOR_DIR / f"{ticker}.csv"
+    if not dest.exists():
+        print(f"Warning: indicator file not found for {ticker} at {dest}. Skipping indicators.")
+        return df, False
+    try:
+        ind = pd.read_csv(dest, parse_dates=["Date"])
+    except Exception:
+        print(f"Warning: failed to read indicator file for {ticker} at {dest}. Skipping indicators.")
+        return df, False
+    if ind.empty:
+        print(f"Warning: indicator file for {ticker} is empty. Skipping indicators.")
+        return df, False
+    ind = ind.sort_values("Date")
+    df = df.sort_values("Date")
+    merged = df.merge(ind, on="Date", how="left")
+    cols = [c for c in ind.columns if c != "Date"]
+    merged[cols] = merged[cols].ffill()
+    return merged, True
 
 
 def passes_filters(

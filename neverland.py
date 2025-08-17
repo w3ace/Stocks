@@ -12,7 +12,7 @@ except Exception:  # ImportError or other
 from fetch_stock import fetch_stock
 from portfolio_utils import expand_ticker_args
 from stock_functions import round_numeric_cols
-from backtest_filters import fetch_daily_data, add_indicators, passes_filters
+from backtest_filters import fetch_daily_data, merge_indicator_data, passes_filters
 
 
 def fetch_intraday(ticker: str, start: pd.Timestamp, end: pd.Timestamp, interval: str = "5m") -> pd.DataFrame:
@@ -138,14 +138,17 @@ def analyze_ticker(
     fetch_start = start - pd.Timedelta(days=5)
     fetch_end = end + pd.Timedelta(days=1)
     daily_df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "neverland")
+    enabled_indicators = None
     if args.indicators:
-        daily_df = add_indicators(daily_df)
+        daily_df, have_ind = merge_indicator_data(daily_df, ticker)
+        if have_ind:
+            enabled_indicators = args.indicators
     mask = []
     for _, row in trades.iterrows():
         sell_date = pd.to_datetime(row["sell_time"]).date()
         idx = daily_df.index[daily_df["Date"].dt.date == sell_date]
         if len(idx) and (
-            not args.indicators or passes_filters(daily_df, int(idx[0]), args, args.indicators)
+            not enabled_indicators or passes_filters(daily_df, int(idx[0]), args, enabled_indicators)
         ):
             mask.append(True)
         else:

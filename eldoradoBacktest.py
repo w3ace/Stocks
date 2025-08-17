@@ -18,7 +18,7 @@ from stock_functions import round_numeric_cols
 from stock_functions import choose_yfinance_interval, period_to_start_end
 from open_range import OpenRangeAnalyzer
 from portfolio_utils import expand_ticker_args, sanitize_ticker_string
-from backtest_filters import fetch_daily_data, add_indicators, passes_filters
+from backtest_filters import fetch_daily_data, merge_indicator_data, passes_filters
 
 
 
@@ -244,15 +244,18 @@ def main() -> None:
         fetch_start = start - pd.Timedelta(days=5)
         fetch_end = end + pd.Timedelta(days=1)
         daily_df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "eldorado")
+        enabled_indicators = None
         if args.indicators:
-            daily_df = add_indicators(daily_df)
+            daily_df, have_ind = merge_indicator_data(daily_df, ticker)
+            if have_ind:
+                enabled_indicators = args.indicators
         filtered_details: list[dict[str, float | str | pd.Timestamp]] = []
         for item in results.trade_details:
             trade_date = pd.to_datetime(item.get("date")).date()
             exit_day = (pd.Timestamp(trade_date) + BDay(1)).date()
             idx = daily_df.index[daily_df["Date"].dt.date == exit_day]
             if len(idx) and (
-                not args.indicators or passes_filters(daily_df, int(idx[0]), args, args.indicators)
+                not enabled_indicators or passes_filters(daily_df, int(idx[0]), args, enabled_indicators)
             ):
                 filtered_details.append(item)
         results.trade_details = filtered_details

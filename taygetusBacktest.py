@@ -7,7 +7,7 @@ import yfinance as yf
 import numpy as np
 from stock_functions import period_to_start_end, round_numeric_cols
 from portfolio_utils import expand_ticker_args
-from backtest_filters import fetch_daily_data, add_indicators, passes_filters
+from backtest_filters import fetch_daily_data, merge_indicator_data, passes_filters
 
 try:
     from tabulate import tabulate
@@ -284,9 +284,14 @@ def main() -> None:
         if df.empty:
             print(f"No data for {ticker}")
             continue
+        indicator_list = None
         if args.indicators:
-            df = add_indicators(df)
-        trades = backtest_pattern(df, args.pattern, args)
+            df, have_ind = merge_indicator_data(df, ticker)
+            if have_ind:
+                indicator_list = args.indicators
+        bt_args = argparse.Namespace(**vars(args))
+        bt_args.indicators = indicator_list
+        trades = backtest_pattern(df, args.pattern, bt_args)
         trades = [
             t
             for t in trades
@@ -350,7 +355,7 @@ def main() -> None:
                 if _check_pattern(days, pat) and _check_signal(days, pat):
                     idx = df.index[df["Date"] == original_end]
                     if len(idx) and (
-                        not args.indicators or passes_filters(df, int(idx[0]), args, args.indicators)
+                        not indicator_list or passes_filters(df, int(idx[0]), bt_args, indicator_list)
                     ):
                         price = fetch_current_price(ticker)
                         if price is not None:

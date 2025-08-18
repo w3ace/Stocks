@@ -116,10 +116,18 @@ def merge_indicator_data(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, b
         print(f"Warning: indicator file for {ticker} is empty. Skipping indicators.")
         return df, False
     ind = ind.sort_values("Date")
+    # Drop raw price columns so merging doesn't create duplicate
+    # ``_x``/``_y`` suffixed columns which would otherwise cause a
+    # ``KeyError`` when we forward fill indicator values.  The price
+    # data from ``df`` is authoritative and already contains these
+    # fields.
+    price_cols = {"Open", "High", "Low", "Close", "Adj Close", "Volume"}
+    ind = ind.drop(columns=[c for c in price_cols if c in ind.columns], errors="ignore")
     df = df.sort_values("Date")
     merged = df.merge(ind, on="Date", how="left")
     cols = [c for c in ind.columns if c != "Date"]
-    merged[cols] = merged[cols].ffill()
+    if cols:
+        merged[cols] = merged[cols].ffill()
     return merged, True
 
 

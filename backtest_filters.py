@@ -3,6 +3,9 @@ import yfinance as yf
 import numpy as np
 from pathlib import Path
 
+# Opt-in to pandas' future behavior to avoid silent downcasting warnings
+pd.set_option("future.no_silent_downcasting", True)
+
 CACHE_DIR = Path(__file__).resolve().parent / "yfinance_cache"
 INDICATOR_DIR = Path(__file__).resolve().parent / "datasets" / "indicators"
 

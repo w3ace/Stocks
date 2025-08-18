@@ -101,22 +101,22 @@ def _check_signal(days: dict[int, pd.Series], pat: TaygetusPattern) -> bool:
     d3 = days[3]
     sig = pat.signal_metric
     dir = pat.signal_dir
-    if sig == "O":
+    if sig == "O": # Open
         if dir == "U":
             return d2["Open"] > d3["Close"]
         else:
             return d2["Open"] < d3["Close"]
-    if sig == "C":
+    if sig == "C": # Close
         if dir == "U":
             return d2["Close"] > d3["Close"]
         else:
             return d2["Close"] < d3["Close"]
-    if sig == "D":
+    if sig == "D": # Day
         if dir == "U":
             return d2["Close"] > d2["Open"]
         else:
             return d2["Close"] < d2["Open"]
-    if sig == "E":
+    if sig == "E": # Engulfing
         bull = d2["Open"] < d3["Close"] and d2["Close"] > d3["Open"]
         bear = d2["Open"] > d3["Close"] and d2["Close"] < d3["Open"]
         if dir == "U":
@@ -124,7 +124,7 @@ def _check_signal(days: dict[int, pd.Series], pat: TaygetusPattern) -> bool:
         if dir == "D":
             return bear
         return bull or bear
-    if sig == "H":
+    if sig == "I":    # Harami
         inside = (
             min(d3["Open"], d3["Close"]) <= d2["Open"] <= max(d3["Open"], d3["Close"])
             and min(d3["Open"], d3["Close"]) <= d2["Close"] <= max(d3["Open"], d3["Close"])

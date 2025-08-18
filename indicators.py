@@ -91,6 +91,7 @@ def main() -> None:
         "nr7",
         "inside_2",
         "above_sma",
+        "below_sma",
         "trend_slope",
         "pullback_pct",
         "gap",
@@ -107,6 +108,8 @@ def main() -> None:
     if "inside_2" in enabled:
         req = max(req, 3)
     if "above_sma" in enabled:
+        req = max(req, 20)
+    if "below_sma" in enabled:
         req = max(req, 20)
     if "trend_slope" in enabled:
         req = max(req, 25)

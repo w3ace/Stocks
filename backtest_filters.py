@@ -127,7 +127,7 @@ def merge_indicator_data(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, b
     merged = df.merge(ind, on="Date", how="left")
     cols = [c for c in ind.columns if c != "Date"]
     if cols:
-        merged[cols] = merged[cols].ffill()
+        merged[cols] = merged[cols].ffill().infer_objects(copy=False)
     return merged, True
 
 

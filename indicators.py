@@ -57,7 +57,7 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     df["CandlePattern"] = ""
-    df.loc[df["Hammer"], "CandlePattern"] = "HU"
+    df.loc[df["HammerUp"], "CandlePattern"] = "HU"
     df.loc[df["HammerDown"], "CandlePattern"] = "HD"
     df.loc[df["MarubozuUp"], "CandlePattern"] = "MU"
     df.loc[df["MarubozuDown"], "CandlePattern"] = "MD"

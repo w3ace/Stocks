@@ -123,6 +123,10 @@ def main() -> None:
         help="Generate plots. 'daily' shows average profit and trade counts per day",
     )
     parser.add_argument(
+        "--portfolio-out",
+        help="Overwrite portfolio tickers file in ./portfolios/<name>",
+    )
+    parser.add_argument(
         "--indicators",
         nargs="+",
         choices=[
@@ -384,7 +388,9 @@ def main() -> None:
         trades_df = trades_df[[c for c in desired_cols if c in trades_df.columns]]
 
         if "date" in trades_df.columns:
-            trades_df["date"] = pd.to_datetime(trades_df["date"]).dt.strftime("%Y-%m-%d")
+            trades_df["date"] = pd.to_datetime(trades_df["date"])
+            trades_df = trades_df.sort_values(by="date")
+            trades_df["date"] = trades_df["date"].dt.strftime("%Y-%m-%d")
 
         if "time" in trades_df.columns:
             trades_df = trades_df.drop(columns=["time"])
@@ -451,7 +457,7 @@ def main() -> None:
         ].tolist()
 
 
-        tickers_df = tickers_df.sort_values(by="total_profit", ascending=False)
+        tickers_df = tickers_df.sort_values(by="total_profit", ascending=True)
         if args.min_profit is not None:
             tickers_df = tickers_df[tickers_df["total_profit"] > args.min_profit]
 
@@ -498,6 +504,7 @@ def main() -> None:
 
         # If analysis ended on the last complete trading day, check for today's buys
         today_buys: list[dict[str, float | str | pd.Timestamp]] = []
+        tickers_line = ""
         end_date = end.tz_convert("US/Eastern").date() if end.tzinfo else end.date()
         start_date = start.tz_convert("US/Eastern").date() if start.tzinfo else start.date()
         last_day = end_date if end_date == start_date else (pd.Timestamp(end_date) - pd.Timedelta(days=1)).date()
@@ -568,6 +575,12 @@ def main() -> None:
                 print(tabulate(today_df, headers="keys", tablefmt="grid", showindex=False))
             else:
                 print(today_df.to_string(index=False))
+            tickers_line = " ".join(today_df["ticker"].astype(str).tolist())
+            print(tickers_line)
+        if args.portfolio_out:
+            portfolio_dir = Path("portfolios")
+            portfolio_dir.mkdir(exist_ok=True)
+            (portfolio_dir / args.portfolio_out).write_text(tickers_line)
 
     print("Total Trades:", super_total_trades)
     print("Total Profit:", f"{super_total_profit:.3f}")

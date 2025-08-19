@@ -198,6 +198,10 @@ def main() -> None:
         help='Print per-ticker or per-trade summary to console in an ASCII table',
     )
     parser.add_argument(
+        '--portfolio-out',
+        help='Overwrite portfolio tickers file in ./portfolios/<name>',
+    )
+    parser.add_argument(
         '--pattern',
         default='3OUH',
         help='Pattern string e.g. 3OUH or 4DUED',
@@ -276,6 +280,7 @@ def main() -> None:
     rows: list[dict[str, float | int | str]] = []
     trade_rows: list[dict[str, float | str | pd.Timestamp]] = []
     today_buys: list[dict[str, float | str]] = []
+    tickers_line = ""
     ticker_stats: dict[str, dict[str, float | int | str]] = {}
     is_today_end = original_end.normalize() == pd.Timestamp.now().normalize()
 
@@ -374,6 +379,8 @@ def main() -> None:
 
     trades_df = pd.DataFrame(trade_rows)
     trades_df = round_numeric_cols(trades_df)
+    if "entry_day" in trades_df.columns:
+        trades_df = trades_df.sort_values(by="entry_day")
     trades_df.to_csv(trades_path, index=False)
     if args.console_out == 'trades' and not trades_df.empty:
         if tabulate:
@@ -389,7 +396,7 @@ def main() -> None:
         columns=['ticker', 'trades', 'exec_pct', 'win_pct', 'loss_pct', 'avg_open', 'avg_close', 'avg_high', 'avg_low']
     )
     if not tickers_df.empty:
-        tickers_df = tickers_df.sort_values(by='avg_open', ascending=False)
+        tickers_df = tickers_df.sort_values(by='avg_open', ascending=True)
         tickers_df = round_numeric_cols(tickers_df)
         tickers_df.to_csv(tickers_path, index=False)
         if args.console_out == 'tickers':
@@ -418,6 +425,10 @@ def main() -> None:
             print(buy_df.to_string(index=False))
         tickers_line = " ".join(t["ticker"].upper() for t in today_buys)
         print(tickers_line)
+    if args.portfolio_out:
+        portfolio_dir = Path("portfolios")
+        portfolio_dir.mkdir(exist_ok=True)
+        (portfolio_dir / args.portfolio_out).write_text(tickers_line)
 
     if total_trades:
         overall_open = total_return_open / total_trades

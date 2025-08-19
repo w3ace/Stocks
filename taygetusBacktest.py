@@ -356,7 +356,7 @@ def main() -> None:
         if is_today_end and not df[df["Date"] == original_end].empty:
             recent = df[df["Date"] <= original_end].tail(pattern_length)
             if len(recent) == pattern_length:
-                days = {j + 1: recent.iloc[-(j + 1)] for j in range(pattern_length)}
+                days = {j + 1: recent.iloc[-(j)] for j in range(pattern_length)}
                 if _check_pattern(days, pat) and _check_signal(days, pat):
                     idx = df.index[df["Date"] == original_end]
                     if len(idx) and (

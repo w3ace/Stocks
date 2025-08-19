@@ -176,6 +176,10 @@ def passes_filters(
         sma_col = f"SMA{args.above_sma}"
         if pd.isna(d2.get(sma_col)) or not (d2["Close"] > d2[sma_col]):
             return False
+    if "below_sma" in enabled:
+        sma_col = f"SMA{args.below_sma}"
+        if pd.isna(d2.get(sma_col)) or not (d2["Close"] < d2[sma_col]):
+            return False
     if "trend_slope" in enabled:
         if pd.isna(d2.get("SMA20")) or pd.isna(d2.get("SMA20_5dago")):
             return False

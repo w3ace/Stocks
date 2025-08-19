@@ -215,6 +215,7 @@ def main() -> None:
             'dollar_vol',
             'atr_pct',
             'above_sma',
+            'below_sma',
             'trend_slope',
             'nr7',
             'inside_2',
@@ -237,6 +238,7 @@ def main() -> None:
     parser.add_argument("--min-atr-pct", type=float, default=1.0)
     parser.add_argument("--max-atr-pct", type=float, default=8.0)
     parser.add_argument("--above-sma", type=int, choices=[20, 50, 200], default=20)
+    parser.add_argument("--below-sma", type=int, choices=[20, 50, 200], default=20)
     parser.add_argument("--trend-slope", type=float, default=0.0)  # SMA20 - SMA20_5dago > this
     parser.add_argument("--min-gap-pct", type=float, default=0.4)
     parser.add_argument("--body-pct-min", dest="body_pct_min", type=float, default=60.0)

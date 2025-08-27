@@ -84,7 +84,7 @@ def main() -> None:
             "Space-separated trade filters. Prefix with ! to invert. "
             "Available filters: MO (Mark > Open), OM (Open > Mark), ORM (Buy "
             "Price * 1.002 > Open Range High), GU (Open > Prev Close), "
-            "GD (Open < Prev Close)"
+            "GD (Open < Prev Close), MPC (Mark > Prev Close)"
         ),
     )
     parser.add_argument(

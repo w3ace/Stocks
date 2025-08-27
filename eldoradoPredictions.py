@@ -238,7 +238,7 @@ def main() -> None:
         default="MO",
         help=(
             "Space-separated trade filters. Prefix with ! to invert. "
-            "Available filters: MO, OM, ORM"
+            "Available filters: MO, OM, ORM, GU, GD, MPC"
         ),
     )
     parser.add_argument(

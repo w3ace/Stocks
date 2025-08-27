@@ -212,6 +212,11 @@ def analyze_open_range(
                 check = open_price > after_or_price * filter_offset
             elif name.upper() == "ORM":
                 check = after_or_price  > or_high * 0.9965
+            elif name.upper() == "MPC":
+                check = (
+                    prev_close is not None
+                    and after_or_price > prev_close * filter_offset
+                )
             elif name.upper() == "GU":
                 check = gap_up
             elif name.upper() == "GD":

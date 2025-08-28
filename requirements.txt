@@ -1,0 +1,8 @@
+streamlit
+yfinance
+pandas
+numpy
+altair
+tabulate
+pytest
+flake8

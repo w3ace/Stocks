@@ -1,0 +1,19 @@
+[project]
+name = "stocks"
+version = "0.1.0"
+description = "Hybrid CLI and Streamlit app for pattern backtests"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas",
+    "numpy",
+    "yfinance",
+    "tabulate",
+    "altair",
+    "streamlit",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+
+[tool.flake8]
+max-line-length = 88

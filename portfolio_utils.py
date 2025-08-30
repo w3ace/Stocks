@@ -3,6 +3,10 @@ from typing import Iterable, Sequence
 import re
 
 
+# Absolute path to the repository's ``portfolios`` directory.
+PORTFOLIOS_DIR = Path(__file__).resolve().with_name("portfolios")
+
+
 def expand_ticker_args(ticker_args: Iterable[str]) -> list[str]:
     """Expand portfolio names prefixed with ``+`` or ``-`` to tickers.
 
@@ -19,7 +23,7 @@ def expand_ticker_args(ticker_args: Iterable[str]) -> list[str]:
     for token in ticker_args:
         if token.startswith("+"):
             name = token[1:]
-            path = Path("portfolios") / name
+            path = PORTFOLIOS_DIR / name
             if path.exists():
                 expanded.extend(path.read_text().split())
             else:
@@ -34,7 +38,7 @@ def expand_ticker_args(ticker_args: Iterable[str]) -> list[str]:
 
     # Exclude tickers from ``-`` portfolios
     for name in exclude_files:
-        path = Path("portfolios") / name
+        path = PORTFOLIOS_DIR / name
         if path.exists():
             exclusions = set(path.read_text().split())
             result = [t for t in result if t not in exclusions]

@@ -62,6 +62,12 @@ if st.button("Run"):
         }
         st.subheader("Summary")
         st.write(summary_all)
+        st.subheader("Trades")
+        st.dataframe(combined)
+        st.subheader("Equity Curve")
+        st.altair_chart(equity_curve(combined), use_container_width=True)
+        st.subheader("Gain/Loss")
+        st.altair_chart(gain_loss_bar(combined), use_container_width=True)
 
     for ticker, trades in ticker_trades[: int(max_out)]:
         st.subheader(f"Trades - {ticker}")

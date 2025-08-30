@@ -1,6 +1,5 @@
 import argparse
 from pathlib import Path
-from dataclasses import dataclass
 
 import pandas as pd
 import yfinance as yf
@@ -8,6 +7,13 @@ import numpy as np
 from stock_functions import period_to_start_end, round_numeric_cols
 from portfolio_utils import expand_ticker_args
 from backtest_filters import fetch_daily_data, merge_indicator_data, passes_filters
+from stocks.backtests.taygetus import (
+    TaygetusPattern,
+    backtest_pattern,
+    check_pattern,
+    check_signal,
+    parse_pattern,
+)
 
 try:
     from tabulate import tabulate
@@ -31,158 +37,6 @@ def fetch_current_price(ticker: str) -> float | None:
     return data["Close"].iloc[-1].item()
 
 
-@dataclass
-class TaygetusPattern:
-    """Structured representation of a Taygetus pattern string."""
-
-    length: int
-    pattern_metric: str
-    pattern_dir: str
-    signal_metric: str
-    signal_dir: str | None = None
-
-
-def parse_pattern(pattern: str) -> TaygetusPattern:
-    """Parse a pattern string into its components.
-
-    Parameters
-    ----------
-    pattern : str
-        Pattern string such as ``"3OUH"``.
-    """
-
-    if not pattern or len(pattern) < 4:
-        raise ValueError("pattern must be at least 4 characters long")
-    length = int(pattern[0])
-    patt_metric = pattern[1].upper()
-    patt_dir = pattern[2].upper()
-    sig_metric = pattern[3].upper()
-    sig_dir = pattern[4].upper() if len(pattern) > 4 else None
-    if patt_metric not in "OCD" or patt_dir not in "UD":
-        raise ValueError("invalid pattern or direction")
-    if sig_metric not in "OCDEH":
-        raise ValueError("invalid signal")
-    if sig_metric in "OCD" and (sig_dir not in "UD"):
-        raise ValueError("signal direction required for O/C/D")
-    if sig_metric in "EH" and sig_dir and sig_dir not in "UD":
-        raise ValueError("invalid signal direction")
-    return TaygetusPattern(length, patt_metric, patt_dir, sig_metric, sig_dir)
-
-
-def _check_pattern(days: dict[int, pd.Series], pat: TaygetusPattern) -> bool:
-    """Verify the pattern portion across historical days."""
-
-    num = pat.length
-    for k in range(num + 1, 2, -1):
-        newer = days[k - 1]
-        older = days[k]
-        if pat.pattern_metric == "O":
-            if pat.pattern_dir == "U" and not (older["Open"] < newer["Open"]):
-                return False
-            if pat.pattern_dir == "D" and not (older["Open"] > newer["Open"]):
-                return False
-        elif pat.pattern_metric == "C":
-            if pat.pattern_dir == "U" and not (older["Close"] < newer["Close"]):
-                return False
-            if pat.pattern_dir == "D" and not (older["Close"] > newer["Close"]):
-                return False
-        elif pat.pattern_metric == "D":
-            if pat.pattern_dir == "U" and not (older["Close"] > older["Open"]):
-                return False
-            if pat.pattern_dir == "D" and not (older["Close"] < older["Open"]):
-                return False
-    return True
-
-
-def _check_signal(days: dict[int, pd.Series], pat: TaygetusPattern) -> bool:
-    """Check the entry day signal."""
-
-    d2 = days[2]
-    d3 = days[3]
-    sig = pat.signal_metric
-    dir = pat.signal_dir
-    if sig == "O": # Open
-        if dir == "U":
-            return d2["Open"] > d3["Close"]
-        else:
-            return d2["Open"] < d3["Close"]
-    if sig == "C": # Close
-        if dir == "U":
-            return d2["Close"] > d3["Close"]
-        else:
-            return d2["Close"] < d3["Close"]
-    if sig == "D": # Day
-        if dir == "U":
-            return d2["Close"] > d2["Open"]
-        else:
-            return d2["Close"] < d2["Open"]
-    if sig == "E": # Engulfing
-        bull = d2["Open"] < d3["Close"] and d2["Close"] > d3["Open"]
-        bear = d2["Open"] > d3["Close"] and d2["Close"] < d3["Open"]
-        if dir == "U":
-            return bull
-        if dir == "D":
-            return bear
-        return bull or bear
-    if sig == "I":    # Harami
-        inside = (
-            min(d3["Open"], d3["Close"]) <= d2["Open"] <= max(d3["Open"], d3["Close"])
-            and min(d3["Open"], d3["Close"]) <= d2["Close"] <= max(d3["Open"], d3["Close"])
-        )
-        if not inside:
-            return False
-        if dir == "U":
-            return d2["Close"] > d2["Open"]
-        if dir == "D":
-            return d2["Close"] < d2["Open"]
-        return True
-    return False
-
-
-
-
-def backtest_pattern(
-    df: pd.DataFrame, pattern: str, args
-) -> list[dict[str, float | pd.Timestamp]]:
-    """Return detailed trades meeting the selected Taygetus pattern."""
-
-    pat = parse_pattern(pattern)
-    pattern_length = pat.length + 1
-
-    trades: list[dict[str, float | pd.Timestamp]] = []
-    for i in range(pattern_length - 1, len(df)):
-        days = {j + 1: df.iloc[i - j] for j in range(pattern_length)}
-
-        if _check_pattern(days, pat) and _check_signal(days, pat):
-            if not args.indicators or passes_filters(df, i, args, args.indicators):
-                entry_price = days[2]["Close"]
-                exit_open = days[1]["Open"]
-                exit_close = days[1]["Close"]
-                exit_high = days[1]["High"]
-                exit_low = days[1]["Low"]
-
-                gain_open = exit_open - entry_price
-                gain_close = exit_close - entry_price
-                gain_high = exit_high - entry_price
-                gain_low = exit_low - entry_price
-
-                trades.append(
-                    {
-                        "entry_day": days[2]["Date"].date(),
-                        "exit_day": days[1]["Date"].date(),
-                        "entry_price": entry_price,
-                        "exit_open": exit_open,
-                        "open": gain_open,
-                        "close": gain_close,
-                        "high": gain_high,
-                        "low": gain_low,
-                        "open_pct": gain_open / entry_price * 100,
-                        "close_pct": gain_close / entry_price * 100,
-                        "high_pct": gain_high / entry_price * 100,
-                        "low_pct": gain_low / entry_price * 100,
-                    }
-                )
-    return trades
 
 
 def main() -> None:
@@ -299,25 +153,16 @@ def main() -> None:
         bt_args = argparse.Namespace(**vars(args))
         bt_args.indicators = indicator_list
         trades = backtest_pattern(df, args.pattern, bt_args)
-        trades = [
-            t
-            for t in trades
-            if original_start.date() <= t["entry_day"] <= original_end.date()
+        trades = trades[
+            (trades["entry_day"] >= original_start.date())
+            & (trades["entry_day"] <= original_end.date())
         ]
         count = len(trades)
-        avg_open = (
-            sum(t['open_pct'] for t in trades) / count if count else 0.0
-        )
-        avg_close = (
-            sum(t['close_pct'] for t in trades) / count if count else 0.0
-        )
-        avg_high = (
-            sum(t['high_pct'] for t in trades) / count if count else 0.0
-        )
-        avg_low = (
-            sum(t['low_pct'] for t in trades) / count if count else 0.0
-        )
-        wins = sum(1 for t in trades if t['open_pct'] > 0)
+        avg_open = trades["open_pct"].mean() if count else 0.0
+        avg_close = trades["close_pct"].mean() if count else 0.0
+        avg_high = trades["high_pct"].mean() if count else 0.0
+        avg_low = trades["low_pct"].mean() if count else 0.0
+        wins = int((trades["open_pct"] > 0).sum())
         win_pct = wins / count * 100 if count else 0.0
         loss_pct = (count - wins) / count * 100 if count else 0.0
         backtest_days = df[
@@ -340,8 +185,9 @@ def main() -> None:
         ticker_stats[ticker] = stats_row
         if count:
             rows.append(stats_row)
-        for trade in trades:
-            trade_rows.append({'ticker': ticker, **trade})
+        trade_rows.extend(
+            trades.assign(ticker=ticker).to_dict("records")
+        )
         if args.console_out not in ('tickers', 'trades'):
             print(
                 f"{ticker}: Trades {count}, Execute {exec_pct:.2f}%, Win {win_pct:.2f}%, "
@@ -349,17 +195,17 @@ def main() -> None:
                 f"Close {avg_close:.2f}%, High {avg_high:.2f}%, Low {avg_low:.2f}%"
             )
         total_trades += count
-        total_return_open += sum(t['open_pct'] for t in trades)
-        total_return_close += sum(t['close_pct'] for t in trades)
-        total_return_high += sum(t['high_pct'] for t in trades)
-        total_return_low += sum(t['low_pct'] for t in trades)
+        total_return_open += trades["open_pct"].sum()
+        total_return_close += trades["close_pct"].sum()
+        total_return_high += trades["high_pct"].sum()
+        total_return_low += trades["low_pct"].sum()
         total_wins += wins
 
         if is_today_end and not df[df["Date"] == original_end].empty:
             recent = df[df["Date"] <= original_end].tail(pattern_length)
             if len(recent) == pattern_length:
                 days = {j + 1: recent.iloc[-(j)] for j in range(pattern_length)}
-                if _check_pattern(days, pat) and _check_signal(days, pat):
+                if check_pattern(days, pat) and check_signal(days, pat):
                     idx = df.index[df["Date"] == original_end]
                     if len(idx) and (
                         not indicator_list or passes_filters(df, int(idx[0]), bt_args, indicator_list)

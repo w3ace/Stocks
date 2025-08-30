@@ -1,4 +1,9 @@
 import streamlit as st
+from pathlib import Path
+import sys
+
+# Ensure project root is on sys.path for module imports
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from stocks.backtests.taygetus import backtest_pattern
 from stocks.data.fetch import fetch_ticker

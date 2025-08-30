@@ -25,7 +25,10 @@ def fetch_ticker(
     cache_key = f"{ticker}_{start}_{end}_{use_period}.csv".replace("None", "-")
     cache_path = CACHE_DIR / cache_key
     if cache_path.exists() and not force:
-        return pd.read_csv(cache_path, parse_dates=["Date"], index_col="Date")
+        try:
+            return pd.read_csv(cache_path, parse_dates=["Date"], index_col="Date")
+        except (ValueError, KeyError, pd.errors.EmptyDataError):
+            cache_path.unlink(missing_ok=True)
 
     kwargs = {"auto_adjust": True, "progress": False}
     if start or end:

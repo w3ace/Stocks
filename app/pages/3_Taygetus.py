@@ -16,7 +16,11 @@ from stocks.utils.plots import equity_curve, gain_loss_bar
 
 st.title("Taygetus Backtest")
 
-tickers_input = st.text_input("Tickers", "AAPL")
+tickers_input = st.text_input(
+    "Tickers",
+    "AAPL",
+    help="Prefix with +<portfolio> to load tickers from the portfolios folder.",
+)
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     start = st.date_input(

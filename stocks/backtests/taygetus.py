@@ -117,6 +117,20 @@ def parse_pattern(pattern: str) -> TaygetusPattern:
     return TaygetusPattern(length, patt_metric, patt_dir, sig_metric, sig_dir)
 
 
+def _scalar(value: pd.Series | float | int) -> float:
+    """Return a Python float for *value*.
+
+    *value* may be either a plain numeric type or a ``pandas.Series`` with a
+    single element.  This helper avoids ``ValueError: The truth value of a
+    Series is ambiguous`` errors when comparing values extracted from rows that
+    may contain duplicate column names.
+    """
+
+    if isinstance(value, pd.Series):
+        return float(value.iloc[0])
+    return float(value)
+
+
 def check_pattern(days: Dict[int, pd.Series], pat: TaygetusPattern) -> bool:
     """Verify the pattern portion across historical days."""
 
@@ -125,25 +139,25 @@ def check_pattern(days: Dict[int, pd.Series], pat: TaygetusPattern) -> bool:
         newer = days[k - 1]
         older = days[k]
         if pat.pattern_metric == "O":
-            if pat.pattern_dir == "U" and not (older["Open"] < newer["Open"]):
+            older_open = _scalar(older["Open"])
+            newer_open = _scalar(newer["Open"])
+            if pat.pattern_dir == "U" and not (older_open < newer_open):
                 return False
-            if pat.pattern_dir == "D" and not (older["Open"] > newer["Open"]):
+            if pat.pattern_dir == "D" and not (older_open > newer_open):
                 return False
         elif pat.pattern_metric == "C":
-            if (
-                pat.pattern_dir == "U"
-                and not (older["Close"] < newer["Close"])
-            ):
+            older_close = _scalar(older["Close"])
+            newer_close = _scalar(newer["Close"])
+            if pat.pattern_dir == "U" and not (older_close < newer_close):
                 return False
-            if (
-                pat.pattern_dir == "D"
-                and not (older["Close"] > newer["Close"])
-            ):
+            if pat.pattern_dir == "D" and not (older_close > newer_close):
                 return False
         elif pat.pattern_metric == "D":
-            if pat.pattern_dir == "U" and not (older["Close"] > older["Open"]):
+            older_open = _scalar(older["Open"])
+            older_close = _scalar(older["Close"])
+            if pat.pattern_dir == "U" and not (older_close > older_open):
                 return False
-            if pat.pattern_dir == "D" and not (older["Close"] < older["Open"]):
+            if pat.pattern_dir == "D" and not (older_close < older_open):
                 return False
     return True
 
@@ -155,42 +169,43 @@ def check_signal(days: Dict[int, pd.Series], pat: TaygetusPattern) -> bool:
     d3 = days[3]
     sig = pat.signal_metric
     direction = pat.signal_dir
+    d2_open = _scalar(d2["Open"])
+    d2_close = _scalar(d2["Close"])
+    d3_open = _scalar(d3["Open"])
+    d3_close = _scalar(d3["Close"])
     if sig == "O":  # Open
         if direction == "U":
-            return d2["Open"] > d3["Close"]
+            return d2_open > d3_close
         else:
-            return d2["Open"] < d3["Close"]
+            return d2_open < d3_close
     if sig == "C":  # Close
         if direction == "U":
-            return d2["Close"] > d3["Close"]
+            return d2_close > d3_close
         else:
-            return d2["Close"] < d3["Close"]
+            return d2_close < d3_close
     if sig == "D":  # Day
         if direction == "U":
-            return d2["Close"] > d2["Open"]
+            return d2_close > d2_open
         else:
-            return d2["Close"] < d2["Open"]
+            return d2_close < d2_open
     if sig == "E":  # Engulfing
-        bull = d2["Open"] < d3["Close"] and d2["Close"] > d3["Open"]
-        bear = (
-            d2["Open"] > d3["Close"]
-            and d2["Close"] < d3["Open"]
-        )
+        bull = d2_open < d3_close and d2_close > d3_open
+        bear = d2_open > d3_close and d2_close < d3_open
         if direction == "U":
             return bull
         if direction == "D":
             return bear
         return bull or bear
     if sig == "I":  # Harami
-        lo = min(d3["Open"], d3["Close"])
-        hi = max(d3["Open"], d3["Close"])
-        inside = lo <= d2["Open"] <= hi and lo <= d2["Close"] <= hi
+        lo = min(d3_open, d3_close)
+        hi = max(d3_open, d3_close)
+        inside = lo <= d2_open <= hi and lo <= d2_close <= hi
         if not inside:
             return False
         if direction == "U":
-            return d2["Close"] > d2["Open"]
+            return d2_close > d2_open
         if direction == "D":
-            return d2["Close"] < d2["Open"]
+            return d2_close < d2_open
         return True
     return False
 
@@ -234,11 +249,11 @@ def _backtest_pattern_advanced(
                     df, i, args, args.indicators
                 ):
                     continue
-            entry_price = days[2]["Close"]
-            exit_open = days[1]["Open"]
-            exit_close = days[1]["Close"]
-            exit_high = days[1]["High"]
-            exit_low = days[1]["Low"]
+            entry_price = _scalar(days[2]["Close"])
+            exit_open = _scalar(days[1]["Open"])
+            exit_close = _scalar(days[1]["Close"])
+            exit_high = _scalar(days[1]["High"])
+            exit_low = _scalar(days[1]["Low"])
             gain_open = exit_open - entry_price
             gain_close = exit_close - entry_price
             gain_high = exit_high - entry_price

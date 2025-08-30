@@ -13,8 +13,9 @@ def prepare_days(df_row_indexed: pd.DataFrame) -> List[Dict[str, float]]:
     """Return a list of OHLC dictionaries from *df_row_indexed*.
 
     This helper is used by the legacy backtest implementation which supports
-    simple patterns such as ``"3E"`` or ``"3EU"``.  The function is retained for
-    backwards compatibility with existing tests and callers.
+    simple patterns such as ``"3E"`` or ``"3EU"``.
+    The function is retained for backwards compatibility with existing
+    tests and callers.
     """
 
     return df_row_indexed[["open", "high", "low", "close"]].to_dict("records")
@@ -45,15 +46,17 @@ def pattern_match(days: List[Dict[str, float]], filter_value: str) -> bool:
     return False
 
 
-def _backtest_pattern_simple(df: pd.DataFrame, filter_value: str) -> pd.DataFrame:
+def _backtest_pattern_simple(
+    df: pd.DataFrame, filter_value: str
+) -> pd.DataFrame:
     """Legacy backtester supporting the original simple pattern syntax."""
 
     df = df.reset_index(drop=True).rename(columns=str.lower)
     match = re.match(r"(\d+)", filter_value)
     n = int(match.group(1)) if match else 0
-    trades = []
+    trades: List[Dict[str, float]] = []
     for i in range(n - 1, len(df) - 1):
-        window = df.iloc[i - n + 1 : i + 1]
+        window = df.iloc[i - n + 1:i + 1]
         days = prepare_days(window)
         if pattern_match(days, filter_value):
             entry_price = df.loc[i, "close"]
@@ -69,7 +72,14 @@ def _backtest_pattern_simple(df: pd.DataFrame, filter_value: str) -> pd.DataFram
                     * 100,
                 }
             )
-    return pd.DataFrame(trades)
+    columns = [
+        "entry_day",
+        "exit_day",
+        "entry_price",
+        "exit_price",
+        "gain_loss_pct",
+    ]
+    return pd.DataFrame(trades, columns=columns)
 
 
 # === New Taygetus pattern engine ===
@@ -120,9 +130,15 @@ def check_pattern(days: Dict[int, pd.Series], pat: TaygetusPattern) -> bool:
             if pat.pattern_dir == "D" and not (older["Open"] > newer["Open"]):
                 return False
         elif pat.pattern_metric == "C":
-            if pat.pattern_dir == "U" and not (older["Close"] < newer["Close"]):
+            if (
+                pat.pattern_dir == "U"
+                and not (older["Close"] < newer["Close"])
+            ):
                 return False
-            if pat.pattern_dir == "D" and not (older["Close"] > newer["Close"]):
+            if (
+                pat.pattern_dir == "D"
+                and not (older["Close"] > newer["Close"])
+            ):
                 return False
         elif pat.pattern_metric == "D":
             if pat.pattern_dir == "U" and not (older["Close"] > older["Open"]):
@@ -156,17 +172,19 @@ def check_signal(days: Dict[int, pd.Series], pat: TaygetusPattern) -> bool:
             return d2["Close"] < d2["Open"]
     if sig == "E":  # Engulfing
         bull = d2["Open"] < d3["Close"] and d2["Close"] > d3["Open"]
-        bear = d2["Open"] > d3["Close"] and d2["Close"] < d3["Open"]
+        bear = (
+            d2["Open"] > d3["Close"]
+            and d2["Close"] < d3["Open"]
+        )
         if direction == "U":
             return bull
         if direction == "D":
             return bear
         return bull or bear
     if sig == "I":  # Harami
-        inside = (
-            min(d3["Open"], d3["Close"]) <= d2["Open"] <= max(d3["Open"], d3["Close"])
-            and min(d3["Open"], d3["Close"]) <= d2["Close"] <= max(d3["Open"], d3["Close"])
-        )
+        lo = min(d3["Open"], d3["Close"])
+        hi = max(d3["Open"], d3["Close"])
+        inside = lo <= d2["Open"] <= hi and lo <= d2["Close"] <= hi
         if not inside:
             return False
         if direction == "U":
@@ -212,7 +230,9 @@ def _backtest_pattern_advanced(
                     from backtest_filters import passes_filters  # type: ignore
                 except Exception:  # pragma: no cover - optional dependency
                     passes_filters = None
-                if passes_filters and not passes_filters(df, i, args, args.indicators):
+                if passes_filters and not passes_filters(
+                    df, i, args, args.indicators
+                ):
                     continue
             entry_price = days[2]["Close"]
             exit_open = days[1]["Open"]
@@ -243,7 +263,25 @@ def _backtest_pattern_advanced(
                     "gain_loss_pct": gain_close / entry_price * 100,
                 }
             )
-    return pd.DataFrame(trades)
+    columns = [
+        "entry_day",
+        "exit_day",
+        "entry_price",
+        "exit_open",
+        "exit_close",
+        "exit_high",
+        "exit_low",
+        "open",
+        "close",
+        "high",
+        "low",
+        "open_pct",
+        "close_pct",
+        "high_pct",
+        "low_pct",
+        "gain_loss_pct",
+    ]
+    return pd.DataFrame(trades, columns=columns)
 
 
 def _is_advanced(pattern: str) -> bool:
@@ -261,10 +299,10 @@ def backtest_pattern(
 ) -> pd.DataFrame:
     """Backtest *pattern* over *df* using the appropriate engine.
 
-    ``pattern`` may be specified using either the legacy syntax (e.g. ``"3E"``)
-    or the advanced Taygetus syntax (e.g. ``"3OUH"``).  The function dispatches
-    to the correct implementation based on the pattern format and always returns
-    a ``pandas.DataFrame`` of trades.
+    ``pattern`` may be specified using either the legacy syntax (e.g.
+    ``"3E"``) or the advanced Taygetus syntax (e.g. ``"3OUH"``).  The
+    function dispatches to the correct implementation based on the pattern
+    format and always returns a ``pandas.DataFrame`` of trades.
     """
 
     if _is_advanced(pattern):

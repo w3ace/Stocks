@@ -45,3 +45,10 @@ def test_3eu_pattern():
     trades = backtest_pattern(df, "3EU")
     assert trades.iloc[0].entry_day == 6
     assert trades.iloc[0].exit_day == 7
+
+
+def test_no_trades_has_expected_columns():
+    df = pd.DataFrame(columns=["Date", "Open", "High", "Low", "Close"])
+    trades = backtest_pattern(df, "3OUCU")
+    assert trades.empty
+    assert "entry_day" in trades.columns

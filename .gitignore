@@ -10,3 +10,8 @@ Desktop.ini
 .~lock*
 API_KEY.txt
 yfinance_cache/
+/app/components/__pycache__
+/stocks/__pycache__
+/stocks/backtests/__pycache__
+/stocks/data/__pycache__
+/stocks/utils/__pycache__

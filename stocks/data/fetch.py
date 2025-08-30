@@ -18,17 +18,26 @@ def fetch_ticker(
     force: bool = False,
 ) -> pd.DataFrame:
     """Download OHLC data for *ticker* using yfinance with on-disk caching."""
-    cache_key = f"{ticker}_{start}_{end}_{period}.csv".replace("None", "-")
+    # yfinance rejects supplying ``period`` alongside ``start``/``end``.  If a
+    # date range is given we drop the ``period`` argument to avoid empty
+    # downloads.  Cached filenames mirror the arguments actually used.
+    use_period = period if not (start or end) else None
+    cache_key = f"{ticker}_{start}_{end}_{use_period}.csv".replace("None", "-")
     cache_path = CACHE_DIR / cache_key
     if cache_path.exists() and not force:
         return pd.read_csv(cache_path, parse_dates=["Date"], index_col="Date")
-    df = yf.download(
-        ticker,
-        start=start,
-        end=end,
-        period=period,
-        auto_adjust=True,
-        progress=False,
-    )
+
+    kwargs = {"auto_adjust": True, "progress": False}
+    if start or end:
+        kwargs.update({"start": start, "end": end})
+    else:
+        kwargs.update({"period": period})
+
+    df = yf.download(ticker, **kwargs)
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    df.columns.name = None
+    df.index.name = "Date"
     df.to_csv(cache_path)
     return df

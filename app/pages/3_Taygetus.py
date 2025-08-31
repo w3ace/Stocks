@@ -1,3 +1,4 @@
+import argparse
 import datetime as dt
 import sys
 from pathlib import Path
@@ -8,10 +9,14 @@ import streamlit as st
 # Ensure project root is on sys.path for module imports
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from stocks.backtests.taygetus import backtest_pattern
-from stocks.data.fetch import fetch_ticker
 from app.components.filters import pattern_selector
+from backtest_filters import (
+    DEFAULT_FILTER_ARGS,
+    INDICATOR_CHOICES,
+    build_filter_args,
+)
 from portfolio_utils import expand_ticker_args
+from stocks.backtests.taygetus_run import run_backtest_for_ticker
 from stocks.utils.plots import equity_curve, gain_loss_bar
 
 st.title("Taygetus Backtest")
@@ -34,20 +39,113 @@ with col4:
     max_out = st.number_input("Max tickers", min_value=1, value=20)
 pattern = pattern_selector()
 
+with st.expander("Indicator Filters"):
+    enabled_ind = st.multiselect("Enable indicators", INDICATOR_CHOICES)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        min_price = st.number_input(
+            "Min Price",
+            value=float(DEFAULT_FILTER_ARGS["min_price"]),
+        )
+        min_avg_vol = st.number_input(
+            "Min Avg Vol",
+            value=float(DEFAULT_FILTER_ARGS["min_avg_vol"]),
+        )
+        min_dollar_vol = st.number_input(
+            "Min Dollar Vol",
+            value=float(DEFAULT_FILTER_ARGS["min_dollar_vol"]),
+            step=1.0,
+        )
+        min_atr_pct = st.number_input(
+            "Min ATR %",
+            value=float(DEFAULT_FILTER_ARGS["min_atr_pct"]),
+        )
+        above_sma = st.selectbox(
+            "Above SMA",
+            options=[20, 50, 200],
+            index=[20, 50, 200].index(int(DEFAULT_FILTER_ARGS["above_sma"])),
+        )
+        trend_slope = st.number_input(
+            "Trend Slope",
+            value=float(DEFAULT_FILTER_ARGS["trend_slope"]),
+        )
+        body_pct_min = st.number_input(
+            "Body % Min",
+            value=float(DEFAULT_FILTER_ARGS["body_pct_min"]),
+        )
+        upper_wick_max = st.number_input(
+            "Upper Wick % Max",
+            value=float(DEFAULT_FILTER_ARGS["upper_wick_max"]),
+        )
+        pullback_pct_max = st.number_input(
+            "Pullback % Max",
+            value=float(DEFAULT_FILTER_ARGS["pullback_pct_max"]),
+        )
+    with col_b:
+        max_price = st.number_input(
+            "Max Price",
+            value=float(DEFAULT_FILTER_ARGS["max_price"]),
+        )
+        max_atr_pct = st.number_input(
+            "Max ATR %",
+            value=float(DEFAULT_FILTER_ARGS["max_atr_pct"]),
+        )
+        below_sma = st.selectbox(
+            "Below SMA",
+            options=[20, 50, 200],
+            index=[20, 50, 200].index(int(DEFAULT_FILTER_ARGS["below_sma"])),
+        )
+        min_gap_pct = st.number_input(
+            "Min Gap %",
+            value=float(DEFAULT_FILTER_ARGS["min_gap_pct"]),
+        )
+        lower_wick_max = st.number_input(
+            "Lower Wick % Max",
+            value=float(DEFAULT_FILTER_ARGS["lower_wick_max"]),
+        )
+
+    filter_args = build_filter_args(
+        indicators=enabled_ind,
+        min_price=min_price,
+        max_price=max_price,
+        min_avg_vol=min_avg_vol,
+        min_dollar_vol=min_dollar_vol,
+        min_atr_pct=min_atr_pct,
+        max_atr_pct=max_atr_pct,
+        above_sma=above_sma,
+        below_sma=below_sma,
+        trend_slope=trend_slope,
+        min_gap_pct=min_gap_pct,
+        body_pct_min=body_pct_min,
+        upper_wick_max=upper_wick_max,
+        lower_wick_max=lower_wick_max,
+        pullback_pct_max=pullback_pct_max,
+    )
+
 if st.button("Run"):
     tokens = [t.strip() for t in tickers_input.replace(",", " ").split() if t.strip()]
     tickers = [t.upper() for t in expand_ticker_args(tokens)]
     start_str = start.strftime("%Y-%m-%d")
     end_str = end.strftime("%Y-%m-%d")
+    start_ts = pd.Timestamp(start_str)
+    end_ts = pd.Timestamp(end_str)
+    cache_tag = f"{start_str}_{end_str}"
 
     all_trades: list[pd.DataFrame] = []
     ticker_trades: list[tuple[str, pd.DataFrame]] = []
 
     for ticker in tickers:
-        df = fetch_ticker(
-            ticker, start=start_str, end=end_str, period=period or None
+        trades, df, _ = run_backtest_for_ticker(
+            ticker,
+            pattern,
+            start_ts,
+            end_ts,
+            filter_args,
+            cache_tag,
         )
-        trades = backtest_pattern(df, pattern)
+        if df.empty:
+            st.write(f"No data for {ticker}")
+            continue
         ticker_trades.append((ticker, trades))
         all_trades.append(trades)
 

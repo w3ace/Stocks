@@ -1,13 +1,71 @@
+import argparse
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import yfinance as yf
-import numpy as np
-from pathlib import Path
 
 # Opt-in to pandas' future behavior to avoid silent downcasting warnings
 pd.set_option("future.no_silent_downcasting", True)
 
+# Central location for indicator-related configuration so both the CLI script
+# and the Streamlit app can remain in sync.
+
 CACHE_DIR = Path(__file__).resolve().parent / "yfinance_cache"
 INDICATOR_DIR = Path(__file__).resolve().parent / "datasets" / "indicators"
+
+# Indicator names exposed to users.  Keeping this list here avoids sprinkling
+# duplicate literals across different entrypoints.
+INDICATOR_CHOICES = [
+    "price",
+    "avg_vol",
+    "dollar_vol",
+    "atr_pct",
+    "above_sma",
+    "below_sma",
+    "trend_slope",
+    "nr7",
+    "inside_2",
+    "body_pct",
+    "upper_wick",
+    "lower_wick",
+    "pullback_pct",
+    "gap",
+]
+
+# Default arguments used by indicator filters.  Consumers can call
+# ``build_filter_args`` to create a ``argparse.Namespace`` with these defaults
+# and selectively override values as needed.
+DEFAULT_FILTER_ARGS: dict[str, float | int] = {
+    "min_price": 5.0,
+    "max_price": 200.0,
+    "min_avg_vol": 1_000_000,
+    "min_dollar_vol": 20_000_000,
+    "min_atr_pct": 1.0,
+    "max_atr_pct": 8.0,
+    "above_sma": 20,
+    "below_sma": 20,
+    "trend_slope": 0.0,
+    "min_gap_pct": 0.4,
+    "body_pct_min": 60.0,
+    "upper_wick_max": 30.0,
+    "lower_wick_max": 40.0,
+    "pullback_pct_max": 6.0,
+}
+
+
+def build_filter_args(**overrides: float | int | list[str] | None) -> argparse.Namespace:
+    """Return an ``argparse.Namespace`` with indicator filter defaults.
+
+    ``overrides`` may specify custom values for any of the keys in
+    :data:`DEFAULT_FILTER_ARGS` as well as an ``indicators`` iterable.  This
+    helper keeps construction of the ``args`` object consistent between the
+    command line utility and the Streamlit app.
+    """
+
+    params = {**DEFAULT_FILTER_ARGS}
+    params.update({k: v for k, v in overrides.items() if v is not None})
+    return argparse.Namespace(**params)
 
 
 def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp, cache_tag: str, subdir: str) -> pd.DataFrame:

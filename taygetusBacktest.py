@@ -6,7 +6,12 @@ import yfinance as yf
 import numpy as np
 from stock_functions import period_to_start_end, round_numeric_cols
 from portfolio_utils import expand_ticker_args
-from backtest_filters import fetch_daily_data, merge_indicator_data, passes_filters
+from backtest_filters import (
+    DEFAULT_FILTER_ARGS,
+    INDICATOR_CHOICES,
+    passes_filters,
+)
+from stocks.backtests.taygetus_run import run_backtest_for_ticker
 from stocks.backtests.taygetus import (
     TaygetusPattern,
     backtest_pattern,
@@ -63,42 +68,91 @@ def main() -> None:
     parser.add_argument(
         '--indicators',
         nargs='+',
-        choices=[
-            'price',
-            'avg_vol',
-            'dollar_vol',
-            'atr_pct',
-            'above_sma',
-            'below_sma',
-            'trend_slope',
-            'nr7',
-            'inside_2',
-            'body_pct',
-            'upper_wick',
-            'lower_wick',
-            'pullback_pct',
-            'gap',
-        ],
+        choices=INDICATOR_CHOICES,
         help=(
             'Indicator filters to enable (default none). '
-            'Example: --indicators price atr_pct gap'  # previously all enabled by default
+            'Example: --indicators price atr_pct gap'
         ),
     )
     # === Filtering flags ===
-    parser.add_argument("--min-price", type=float, default=5.0)
-    parser.add_argument("--max-price", type=float, default=200.0)
-    parser.add_argument("--min-avg-vol", dest="min_avg_vol", type=float, default=1_000_000)
-    parser.add_argument("--min-dollar-vol", dest="min_dollar_vol", type=float, default=20_000_000)
-    parser.add_argument("--min-atr-pct", type=float, default=1.0)
-    parser.add_argument("--max-atr-pct", type=float, default=8.0)
-    parser.add_argument("--above-sma", type=int, choices=[20, 50, 200], default=20)
-    parser.add_argument("--below-sma", type=int, choices=[20, 50, 200], default=20)
-    parser.add_argument("--trend-slope", type=float, default=0.0)  # SMA20 - SMA20_5dago > this
-    parser.add_argument("--min-gap-pct", type=float, default=0.4)
-    parser.add_argument("--body-pct-min", dest="body_pct_min", type=float, default=60.0)
-    parser.add_argument("--upper-wick-max", dest="upper_wick_max", type=float, default=30.0)
-    parser.add_argument("--lower-wick-max", dest="lower_wick_max", type=float, default=40.0)
-    parser.add_argument("--pullback-pct-max", dest="pullback_pct_max", type=float, default=6.0)
+    parser.add_argument(
+        "--min-price",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["min_price"],
+    )
+    parser.add_argument(
+        "--max-price",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["max_price"],
+    )
+    parser.add_argument(
+        "--min-avg-vol",
+        dest="min_avg_vol",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["min_avg_vol"],
+    )
+    parser.add_argument(
+        "--min-dollar-vol",
+        dest="min_dollar_vol",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["min_dollar_vol"],
+    )
+    parser.add_argument(
+        "--min-atr-pct",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["min_atr_pct"],
+    )
+    parser.add_argument(
+        "--max-atr-pct",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["max_atr_pct"],
+    )
+    parser.add_argument(
+        "--above-sma",
+        type=int,
+        choices=[20, 50, 200],
+        default=DEFAULT_FILTER_ARGS["above_sma"],
+    )
+    parser.add_argument(
+        "--below-sma",
+        type=int,
+        choices=[20, 50, 200],
+        default=DEFAULT_FILTER_ARGS["below_sma"],
+    )
+    parser.add_argument(
+        "--trend-slope",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["trend_slope"],
+    )  # SMA20 - SMA20_5dago > this
+    parser.add_argument(
+        "--min-gap-pct",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["min_gap_pct"],
+    )
+    parser.add_argument(
+        "--body-pct-min",
+        dest="body_pct_min",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["body_pct_min"],
+    )
+    parser.add_argument(
+        "--upper-wick-max",
+        dest="upper_wick_max",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["upper_wick_max"],
+    )
+    parser.add_argument(
+        "--lower-wick-max",
+        dest="lower_wick_max",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["lower_wick_max"],
+    )
+    parser.add_argument(
+        "--pullback-pct-max",
+        dest="pullback_pct_max",
+        type=float,
+        default=DEFAULT_FILTER_ARGS["pullback_pct_max"],
+    )
     parser.add_argument(
         '--max-out',
         type=int,
@@ -124,9 +178,6 @@ def main() -> None:
     original_end = end
     cache_tag = f"{original_start.date()}_{original_end.date()}"
 
-    fetch_start = start - pd.Timedelta(days=pattern_length)
-    fetch_end = end + pd.Timedelta(days=1)
-
     total_trades = 0
     total_return_open = 0.0
     total_return_close = 0.0
@@ -141,22 +192,18 @@ def main() -> None:
     is_today_end = original_end.normalize() == pd.Timestamp.now().normalize()
 
     for ticker in tickers:
-        df = fetch_daily_data(ticker, fetch_start, fetch_end, cache_tag, "taygetus")
+        trades, df, bt_args = run_backtest_for_ticker(
+            ticker,
+            args.pattern,
+            original_start,
+            original_end,
+            args,
+            cache_tag,
+        )
         if df.empty:
             print(f"No data for {ticker}")
             continue
-        indicator_list = None
-        if args.indicators:
-            df, have_ind = merge_indicator_data(df, ticker)
-            if have_ind:
-                indicator_list = args.indicators
-        bt_args = argparse.Namespace(**vars(args))
-        bt_args.indicators = indicator_list
-        trades = backtest_pattern(df, args.pattern, bt_args)
-        trades = trades[
-            (trades["entry_day"] >= original_start.date())
-            & (trades["entry_day"] <= original_end.date())
-        ]
+        indicator_list = getattr(bt_args, "indicators", None)
         count = len(trades)
         avg_open = trades["open_pct"].mean() if count else 0.0
         avg_close = trades["close_pct"].mean() if count else 0.0

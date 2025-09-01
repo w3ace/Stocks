@@ -47,9 +47,11 @@ def fetch_current_price(ticker: str) -> float | None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Taygetus pattern backtest")
     parser.add_argument('ticker', nargs='+', help='Ticker symbol or list of symbols')
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--period', help='yfinance period string (e.g. 1y, 6mo)')
-    group.add_argument('--start', help='Start date YYYY-MM-DD')
+    parser.add_argument(
+        '--period',
+        help='yfinance period string (e.g. 1y, 6mo) (overrides start/end if both provided)'
+    )
+    parser.add_argument('--start', help='Start date YYYY-MM-DD')
     parser.add_argument('--end', help='Last buy date YYYY-MM-DD')
     parser.add_argument(
         '--console-out',
@@ -166,11 +168,15 @@ def main() -> None:
     pat = parse_pattern(args.pattern)
     pattern_length = pat.length + 1
 
-    if args.start:
+    if args.period:
+        start, end = period_to_start_end(args.period)
+        start = pd.to_datetime(start)
+        end = pd.to_datetime(end)
+    elif args.start:
         start = pd.to_datetime(args.start)
         end = pd.to_datetime(args.end) if args.end else pd.Timestamp.now().normalize()
     else:
-        start, end = period_to_start_end(args.period or '1y')
+        start, end = period_to_start_end('1y')
         start = pd.to_datetime(start)
         end = pd.to_datetime(end)
 

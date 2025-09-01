@@ -19,6 +19,7 @@ from backtest_filters import (  # noqa: E402
 from portfolio_utils import expand_ticker_args  # noqa: E402
 from stocks.backtests.taygetus_run import run_backtest_for_ticker  # noqa: E402
 from stocks.utils.plots import equity_curve, gain_loss_bar  # noqa: E402
+from stock_functions import period_to_start_end  # noqa: E402
 
 
 @st.cache_data(show_spinner=False)
@@ -58,7 +59,19 @@ with col1:
 with col2:
     end = st.date_input("End", dt.date.today())
 with col3:
-    period = st.text_input("Period", "1y")
+    period_options = [
+        "5d",
+        "1mo",
+        "3mo",
+        "6mo",
+        "1y",
+        "2y",
+        "5y",
+        "10y",
+        "ytd",
+        "max",
+    ]
+    period = st.selectbox("Period", period_options, index=4)
 with col4:
     max_out = st.number_input("Max tickers", min_value=1, value=20)
 pattern = pattern_selector()
@@ -197,11 +210,14 @@ if st.button("Run"):
         if t.strip()
     ]
     tickers = [t.upper() for t in expand_ticker_args(tokens)]
-    start_str = start.strftime("%Y-%m-%d")
-    end_str = end.strftime("%Y-%m-%d")
-    start_ts = pd.Timestamp(start_str)
-    end_ts = pd.Timestamp(end_str)
-    cache_tag = f"{start_str}_{end_str}"
+    if period:
+        start_dt, end_dt = period_to_start_end(period)
+        start_ts = pd.Timestamp(start_dt)
+        end_ts = pd.Timestamp(end_dt)
+    else:
+        start_ts = pd.Timestamp(start)
+        end_ts = pd.Timestamp(end)
+    cache_tag = f"{start_ts.date()}_{end_ts.date()}"
 
     all_trades: list[pd.DataFrame] = []
     ticker_trades: list[tuple[str, pd.DataFrame]] = []

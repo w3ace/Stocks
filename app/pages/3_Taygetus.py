@@ -9,15 +9,16 @@ import streamlit as st
 # Ensure project root is on sys.path for module imports
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from app.components.filters import pattern_selector
-from backtest_filters import (
+from app.components.filters import pattern_selector  # noqa: E402
+from app.components.numeric_inputs import slider_with_input  # noqa: E402
+from backtest_filters import (  # noqa: E402
     DEFAULT_FILTER_ARGS,
     INDICATOR_CHOICES,
     build_filter_args,
 )
-from portfolio_utils import expand_ticker_args
-from stocks.backtests.taygetus_run import run_backtest_for_ticker
-from stocks.utils.plots import equity_curve, gain_loss_bar
+from portfolio_utils import expand_ticker_args  # noqa: E402
+from stocks.backtests.taygetus_run import run_backtest_for_ticker  # noqa: E402
+from stocks.utils.plots import equity_curve, gain_loss_bar  # noqa: E402
 
 
 @st.cache_data(show_spinner=False)
@@ -35,14 +36,19 @@ def run_backtest_cached(
     function so it can be hashed by Streamlit's cache mechanism.
     """
     args = argparse.Namespace(**args_dict)
-    return run_backtest_for_ticker(ticker, pattern, start, end, args, cache_tag)
+    return run_backtest_for_ticker(
+        ticker, pattern, start, end, args, cache_tag
+    )
+
 
 st.title("Taygetus Backtest")
 
 tickers_input = st.text_input(
     "Tickers",
     "AAPL",
-    help="Prefix with +<portfolio> to load tickers from the portfolios folder.",
+    help=(
+        "Prefix with +<portfolio> to load tickers from the portfolios folder."
+    ),
 )
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -61,9 +67,13 @@ with st.expander("Indicator Filters"):
     enabled_ind = st.multiselect("Enable indicators", INDICATOR_CHOICES)
     col_a, col_b = st.columns(2)
     with col_a:
-        min_price = st.number_input(
+        min_price = slider_with_input(
             "Min Price",
+            min_value=0.0,
+            max_value=500.0,
             value=float(DEFAULT_FILTER_ARGS["min_price"]),
+            step=1.0,
+            key="min_price",
         )
         min_avg_vol = st.number_input(
             "Min Avg Vol",
@@ -74,52 +84,92 @@ with st.expander("Indicator Filters"):
             value=float(DEFAULT_FILTER_ARGS["min_dollar_vol"]),
             step=1.0,
         )
-        min_atr_pct = st.number_input(
+        min_atr_pct = slider_with_input(
             "Min ATR %",
+            min_value=0.0,
+            max_value=20.0,
             value=float(DEFAULT_FILTER_ARGS["min_atr_pct"]),
+            step=0.1,
+            key="min_atr_pct",
         )
-        above_sma = st.selectbox(
-            "Above SMA",
-            options=[20, 50, 200],
-            index=[20, 50, 200].index(int(DEFAULT_FILTER_ARGS["above_sma"])),
+        above_sma = int(
+            st.select_slider(
+                "Above SMA",
+                options=[20, 50, 200],
+                value=int(DEFAULT_FILTER_ARGS["above_sma"]),
+            )
         )
-        trend_slope = st.number_input(
+        trend_slope = slider_with_input(
             "Trend Slope",
+            min_value=-10.0,
+            max_value=10.0,
             value=float(DEFAULT_FILTER_ARGS["trend_slope"]),
+            step=0.1,
+            key="trend_slope",
         )
-        body_pct_min = st.number_input(
+        body_pct_min = slider_with_input(
             "Body % Min",
+            min_value=0.0,
+            max_value=100.0,
             value=float(DEFAULT_FILTER_ARGS["body_pct_min"]),
+            step=1.0,
+            key="body_pct_min",
         )
-        upper_wick_max = st.number_input(
+        upper_wick_max = slider_with_input(
             "Upper Wick % Max",
+            min_value=0.0,
+            max_value=100.0,
             value=float(DEFAULT_FILTER_ARGS["upper_wick_max"]),
+            step=1.0,
+            key="upper_wick_max",
         )
-        pullback_pct_max = st.number_input(
+        pullback_pct_max = slider_with_input(
             "Pullback % Max",
+            min_value=0.0,
+            max_value=50.0,
             value=float(DEFAULT_FILTER_ARGS["pullback_pct_max"]),
+            step=0.1,
+            key="pullback_pct_max",
         )
     with col_b:
-        max_price = st.number_input(
+        max_price = slider_with_input(
             "Max Price",
+            min_value=0.0,
+            max_value=500.0,
             value=float(DEFAULT_FILTER_ARGS["max_price"]),
+            step=1.0,
+            key="max_price",
         )
-        max_atr_pct = st.number_input(
+        max_atr_pct = slider_with_input(
             "Max ATR %",
+            min_value=0.0,
+            max_value=20.0,
             value=float(DEFAULT_FILTER_ARGS["max_atr_pct"]),
+            step=0.1,
+            key="max_atr_pct",
         )
-        below_sma = st.selectbox(
-            "Below SMA",
-            options=[20, 50, 200],
-            index=[20, 50, 200].index(int(DEFAULT_FILTER_ARGS["below_sma"])),
+        below_sma = int(
+            st.select_slider(
+                "Below SMA",
+                options=[20, 50, 200],
+                value=int(DEFAULT_FILTER_ARGS["below_sma"]),
+            )
         )
-        min_gap_pct = st.number_input(
+        min_gap_pct = slider_with_input(
             "Min Gap %",
+            min_value=0.0,
+            max_value=20.0,
             value=float(DEFAULT_FILTER_ARGS["min_gap_pct"]),
+            step=0.1,
+            key="min_gap_pct",
         )
-        lower_wick_max = st.number_input(
+        lower_wick_max = slider_with_input(
             "Lower Wick % Max",
+            min_value=0.0,
+            max_value=100.0,
             value=float(DEFAULT_FILTER_ARGS["lower_wick_max"]),
+            step=1.0,
+            key="lower_wick_max",
         )
 
     filter_args = build_filter_args(
@@ -141,7 +191,11 @@ with st.expander("Indicator Filters"):
     )
 
 if st.button("Run"):
-    tokens = [t.strip() for t in tickers_input.replace(",", " ").split() if t.strip()]
+    tokens = [
+        t.strip()
+        for t in tickers_input.replace(",", " ").split()
+        if t.strip()
+    ]
     tickers = [t.upper() for t in expand_ticker_args(tokens)]
     start_str = start.strftime("%Y-%m-%d")
     end_str = end.strftime("%Y-%m-%d")

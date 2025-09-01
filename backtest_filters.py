@@ -38,20 +38,20 @@ INDICATOR_CHOICES = [
 # ``build_filter_args`` to create a ``argparse.Namespace`` with these defaults
 # and selectively override values as needed.
 DEFAULT_FILTER_ARGS: dict[str, float | int] = {
-    "min_price": 5.0,
-    "max_price": 200.0,
+    "min_price": 5,
+    "max_price": 200,
     "min_avg_vol": 1_000_000,
     "min_dollar_vol": 20_000_000,
-    "min_atr_pct": 1.0,
-    "max_atr_pct": 8.0,
+    "min_atr_pct": 1,
+    "max_atr_pct": 8,
     "above_sma": 20,
     "below_sma": 20,
-    "trend_slope": 0.0,
-    "min_gap_pct": 0.4,
-    "body_pct_min": 60.0,
-    "upper_wick_max": 30.0,
-    "lower_wick_max": 40.0,
-    "pullback_pct_max": 6.0,
+    "trend_slope": 0,
+    "min_gap_pct": 1,
+    "body_pct_min": 60,
+    "upper_wick_max": 30,
+    "lower_wick_max": 40,
+    "pullback_pct_max": 6,
 }
 
 

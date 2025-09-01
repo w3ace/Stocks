@@ -50,6 +50,7 @@ def slider_with_input(
         btn_col1, btn_col2 = st.columns(2)
         btn_col1.button(
             "−",
+            key=f"{key}_decrement_button",
             use_container_width=True,
             on_click=lambda: st.session_state.update(
                 {key: _quantize(st.session_state[key] - step, step)}
@@ -57,6 +58,7 @@ def slider_with_input(
         )
         btn_col2.button(
             "+",
+            key=f"{key}_increment_button",
             use_container_width=True,
             on_click=lambda: st.session_state.update(
                 {key: _quantize(st.session_state[key] + step, step)}

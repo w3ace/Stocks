@@ -63,20 +63,23 @@ with st.expander("Indicator Filters"):
     with col_a:
         min_price = st.number_input(
             "Min Price",
-            value=float(DEFAULT_FILTER_ARGS["min_price"]),
+            value=int(DEFAULT_FILTER_ARGS["min_price"]),
+            step=1,
         )
         min_avg_vol = st.number_input(
             "Min Avg Vol",
-            value=float(DEFAULT_FILTER_ARGS["min_avg_vol"]),
+            value=int(DEFAULT_FILTER_ARGS["min_avg_vol"]),
+            step=1,
         )
         min_dollar_vol = st.number_input(
             "Min Dollar Vol",
-            value=float(DEFAULT_FILTER_ARGS["min_dollar_vol"]),
-            step=1.0,
+            value=int(DEFAULT_FILTER_ARGS["min_dollar_vol"]),
+            step=1,
         )
         min_atr_pct = st.number_input(
             "Min ATR %",
-            value=float(DEFAULT_FILTER_ARGS["min_atr_pct"]),
+            value=int(DEFAULT_FILTER_ARGS["min_atr_pct"]),
+            step=1,
         )
         above_sma = st.selectbox(
             "Above SMA",
@@ -85,28 +88,34 @@ with st.expander("Indicator Filters"):
         )
         trend_slope = st.number_input(
             "Trend Slope",
-            value=float(DEFAULT_FILTER_ARGS["trend_slope"]),
+            value=int(DEFAULT_FILTER_ARGS["trend_slope"]),
+            step=1,
         )
         body_pct_min = st.number_input(
             "Body % Min",
-            value=float(DEFAULT_FILTER_ARGS["body_pct_min"]),
+            value=int(DEFAULT_FILTER_ARGS["body_pct_min"]),
+            step=1,
         )
         upper_wick_max = st.number_input(
             "Upper Wick % Max",
-            value=float(DEFAULT_FILTER_ARGS["upper_wick_max"]),
+            value=int(DEFAULT_FILTER_ARGS["upper_wick_max"]),
+            step=1,
         )
         pullback_pct_max = st.number_input(
             "Pullback % Max",
-            value=float(DEFAULT_FILTER_ARGS["pullback_pct_max"]),
+            value=int(DEFAULT_FILTER_ARGS["pullback_pct_max"]),
+            step=1,
         )
     with col_b:
         max_price = st.number_input(
             "Max Price",
-            value=float(DEFAULT_FILTER_ARGS["max_price"]),
+            value=int(DEFAULT_FILTER_ARGS["max_price"]),
+            step=1,
         )
         max_atr_pct = st.number_input(
             "Max ATR %",
-            value=float(DEFAULT_FILTER_ARGS["max_atr_pct"]),
+            value=int(DEFAULT_FILTER_ARGS["max_atr_pct"]),
+            step=1,
         )
         below_sma = st.selectbox(
             "Below SMA",
@@ -115,11 +124,13 @@ with st.expander("Indicator Filters"):
         )
         min_gap_pct = st.number_input(
             "Min Gap %",
-            value=float(DEFAULT_FILTER_ARGS["min_gap_pct"]),
+            value=int(DEFAULT_FILTER_ARGS["min_gap_pct"]),
+            step=1,
         )
         lower_wick_max = st.number_input(
             "Lower Wick % Max",
-            value=float(DEFAULT_FILTER_ARGS["lower_wick_max"]),
+            value=int(DEFAULT_FILTER_ARGS["lower_wick_max"]),
+            step=1,
         )
 
     filter_args = build_filter_args(

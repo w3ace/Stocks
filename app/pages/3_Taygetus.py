@@ -19,6 +19,24 @@ from portfolio_utils import expand_ticker_args
 from stocks.backtests.taygetus_run import run_backtest_for_ticker
 from stocks.utils.plots import equity_curve, gain_loss_bar
 
+
+@st.cache_data(show_spinner=False)
+def run_backtest_cached(
+    ticker: str,
+    pattern: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    args_dict: dict,
+    cache_tag: str,
+):
+    """Wrapper around :func:`run_backtest_for_ticker` with Streamlit caching.
+
+    ``args_dict`` is converted back to ``argparse.Namespace`` inside the
+    function so it can be hashed by Streamlit's cache mechanism.
+    """
+    args = argparse.Namespace(**args_dict)
+    return run_backtest_for_ticker(ticker, pattern, start, end, args, cache_tag)
+
 st.title("Taygetus Backtest")
 
 tickers_input = st.text_input(
@@ -135,12 +153,12 @@ if st.button("Run"):
     ticker_trades: list[tuple[str, pd.DataFrame]] = []
 
     for ticker in tickers:
-        trades, df, _ = run_backtest_for_ticker(
+        trades, df, _ = run_backtest_cached(
             ticker,
             pattern,
             start_ts,
             end_ts,
-            filter_args,
+            vars(filter_args),
             cache_tag,
         )
         if df.empty:

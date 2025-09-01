@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from typing import Optional
 
 # Opt-in to pandas' future behavior to avoid silent downcasting warnings
 pd.set_option("future.no_silent_downcasting", True)
@@ -143,13 +144,14 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def merge_indicator_data(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, bool]:
-    """Attach pre-computed indicator data for ``ticker`` to ``df``.
+    """Attach indicator statistics for ``ticker`` to ``df``.
 
-    The indicator data is read from ``datasets/indicators/<ticker>.csv``. If the
-    file is missing, a warning is printed and the original ``df`` is returned
-    unchanged along with ``False`` to signal that indicators are unavailable.
-    When the latest day in ``df`` is newer than the indicator dataset, the most
-    recent indicator values are forward-filled to cover the gap.
+    Indicator datasets are cached under ``datasets/indicators``.  When a cached
+    file exists and contains data for the full range of ``df`` it is merged
+    directly.  Missing or stale datasets trigger on-the-fly indicator
+    computation which is then written back to the cache for future runs.  This
+    keeps expensive rolling calculations (e.g. moving averages) from running on
+    every execution of the backtester or Streamlit app.
 
     Parameters
     ----------
@@ -162,26 +164,61 @@ def merge_indicator_data(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, b
     -------
     tuple[pd.DataFrame, bool]
         The merged DataFrame and a flag indicating whether indicators were
-        successfully loaded.
+        successfully loaded or computed.
     """
     dest = INDICATOR_DIR / f"{ticker}.csv"
-    if not dest.exists():
-        print(f"Warning: indicator file not found for {ticker} at {dest}. Skipping indicators.")
+
+    ind: Optional[pd.DataFrame] = None
+    if dest.exists():
+        try:
+            ind = pd.read_csv(dest, parse_dates=["Date"])
+        except Exception:
+            ind = None
+
+    # Regenerate indicators when missing or outdated
+    if ind is None or ind.empty or ind["Date"].max() < df["Date"].max():
+        ind = add_indicators(df)
+        if ind.empty:
+            return df, False
+        ind["TrendSlope"] = ind["SMA20"] - ind["SMA20_5dago"]
+        ind["GapPct"] = (
+            (ind["Open"] - ind["PrevClose"]) / ind["PrevClose"]
+        ).abs() * 100.0
+        cols = [
+            "Date",
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "VolSMA20",
+            "DollarVol20",
+            "ATRpct",
+            "NR7",
+            "Inside2",
+            "SMA20",
+            "SMA50",
+            "SMA200",
+            "SMA20_5dago",
+            "TrendSlope",
+            "PullbackPct20",
+            "GapPct",
+            "BodyPct",
+            "UpperWickPct",
+            "LowerWickPct",
+        ]
+        ind = ind[cols].copy()
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            ind.to_csv(dest, index=False)
+        except Exception:
+            pass
+
+    if ind is None or ind.empty:
         return df, False
-    try:
-        ind = pd.read_csv(dest, parse_dates=["Date"])
-    except Exception:
-        print(f"Warning: failed to read indicator file for {ticker} at {dest}. Skipping indicators.")
-        return df, False
-    if ind.empty:
-        print(f"Warning: indicator file for {ticker} is empty. Skipping indicators.")
-        return df, False
+
     ind = ind.sort_values("Date")
-    # Drop raw price columns so merging doesn't create duplicate
-    # ``_x``/``_y`` suffixed columns which would otherwise cause a
-    # ``KeyError`` when we forward fill indicator values.  The price
-    # data from ``df`` is authoritative and already contains these
-    # fields.
+
+    # Drop raw price columns before merging to avoid duplicate field suffixes
     price_cols = {"Open", "High", "Low", "Close", "Adj Close", "Volume"}
     ind = ind.drop(columns=[c for c in price_cols if c in ind.columns], errors="ignore")
     df = df.sort_values("Date")

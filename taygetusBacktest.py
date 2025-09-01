@@ -210,6 +210,7 @@ def main() -> None:
             print(f"No data for {ticker}")
             continue
         indicator_list = getattr(bt_args, "indicators", None)
+        print (indicator_list)
         count = len(trades)
         avg_open = trades["open_pct"].mean() if count else 0.0
         avg_close = trades["close_pct"].mean() if count else 0.0

@@ -122,12 +122,12 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     tr = np.maximum(tr1, np.maximum(tr2, tr3))
     df["ATR14"] = tr.rolling(14).mean()
     df["ATRpct"] = (df["ATR14"] / df["Close"]) * 100.0
-    df["SMA20"] = df["Close"].rolling(20).mean()
-    df["SMA50"] = df["Close"].rolling(50).mean()
-    df["SMA200"] = df["Close"].rolling(200).mean()
-    df["SMA20_5dago"] = df["SMA20"].shift(5)
-    df["VolSMA20"] = df["Volume"].rolling(20).mean()
-    df["DollarVol20"] = (df["Close"] * df["Volume"]).rolling(20).mean()
+    df["Sma20"] = df["Close"].rolling(20).mean()
+    df["Sma50"] = df["Close"].rolling(50).mean()
+    df["Sma200"] = df["Close"].rolling(200).mean()
+    df["Sma20_5dago"] = df["Sma20"].shift(5)
+    df["VolSma20"] = df["Volume"].rolling(20).mean()
+    df["Dollarvol20"] = (df["Close"] * df["Volume"]).rolling(20).mean()
     rng = (df["High"] - df["Low"]).replace(0, np.nan)
     body = (df["Close"] - df["Open"]).abs()
     df["BodyPct"] = (body / rng) * 100.0
@@ -180,7 +180,7 @@ def merge_indicator_data(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, b
         ind = add_indicators(df)
         if ind.empty:
             return df, False
-        ind["TrendSlope"] = ind["SMA20"] - ind["SMA20_5dago"]
+        ind["TrendSlope"] = ind["Sma20"] - ind["Sma20_5dago"]
         ind["GapPct"] = (
             (ind["Open"] - ind["PrevClose"]) / ind["PrevClose"]
         ).abs() * 100.0
@@ -190,15 +190,15 @@ def merge_indicator_data(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, b
             "High",
             "Low",
             "Close",
-            "VolSMA20",
+            "VolSma20",
             "DollarVol20",
             "ATRpct",
             "NR7",
             "Inside2",
-            "SMA20",
+            "Sma20",
             "SMA50",
-            "SMA200",
-            "SMA20_5dago",
+            "Sma200",
+            "Sma20_5dago",
             "TrendSlope",
             "PullbackPct20",
             "GapPct",
@@ -251,16 +251,18 @@ def passes_filters(
     enabled = set(enabled)
     if i - 2 < 0:
         return False
+    print(df.iloc[i])
     d2 = df.iloc[i - 1]
     d3 = df.iloc[i - 2]
     if "price" in enabled and not (args.min_price <= d2["Close"] <= args.max_price):
         return False
-    if "avg_vol" in enabled and (pd.isna(d2.get("VolSMA20")) or d2["VolSMA20"] < args.min_avg_vol):
+    if "avg_vol" in enabled and (pd.isna(d2.get("Volsma20")) or d2["Volsma20"] < args.min_avg_vol):
+#        print (pd.isna(d2.get("Volsma20")),d2["Volsma20]"],args.min_avg_vol)
         return False
-    if "dollar_vol" in enabled and (pd.isna(d2.get("DollarVol20")) or d2["DollarVol20"] < args.min_dollar_vol):
+    if "dollar_vol" in enabled and (pd.isna(d2.get("Dollarvol20")) or d2["Dollarvol20"] < args.min_dollar_vol):
         return False
     if "atr_pct" in enabled and (
-        pd.isna(d2.get("ATRpct")) or not (args.min_atr_pct <= d2["ATRpct"] <= args.max_atr_pct)
+        pd.isna(d2.get("Atrpct")) or not (args.min_atr_pct <= d2["Atrpct"] <= args.max_atr_pct)
     ):
         return False
     if "nr7" in enabled and not bool(d2.get("NR7", False)):
@@ -268,17 +270,17 @@ def passes_filters(
     if "inside_2" in enabled and not bool(d2.get("Inside2", False)):
         return False
     if "above_sma" in enabled:
-        sma_col = f"SMA{args.above_sma}"
+        sma_col = f"Sma{args.above_sma}"
         if pd.isna(d2.get(sma_col)) or not (d2["Close"] > d2[sma_col]):
             return False
     if "below_sma" in enabled:
-        sma_col = f"SMA{args.below_sma}"
+        sma_col = f"Sma{args.below_sma}"
         if pd.isna(d2.get(sma_col)) or not (d2["Close"] < d2[sma_col]):
             return False
     if "trend_slope" in enabled:
-        if pd.isna(d2.get("SMA20")) or pd.isna(d2.get("SMA20_5dago")):
+        if pd.isna(d2.get("Sma20")) or pd.isna(d2.get("Sma20_5dago")):
             return False
-        if (d2["SMA20"] - d2["SMA20_5dago"]) <= args.trend_slope:
+        if (d2["Sma20"] - d2["Sma20_5dago"]) <= args.trend_slope:
             return False
     if "body_pct" in enabled and (
         pd.isna(d2.get("BodyPct")) or d2["BodyPct"] < args.body_pct_min

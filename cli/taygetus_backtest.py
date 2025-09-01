@@ -19,7 +19,10 @@ def main() -> None:
         )
     parser.add_argument("--start", help="Start date YYYY-MM-DD")
     parser.add_argument("--end", help="End date YYYY-MM-DD")
-    parser.add_argument("--period", help="yfinance period, e.g. 1y")
+    parser.add_argument(
+        "--period",
+        help="yfinance period, e.g. 1y (overrides start/end if both provided)",
+    )
     parser.add_argument("--export", help="Path to export trades as CSV")
     parser.add_argument(
         "--console-out",
@@ -28,9 +31,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    df = fetch_ticker(
-        args.ticker, start=args.start, end=args.end, period=args.period
-    )
+    # yfinance ignores ``period`` when ``start``/``end`` are supplied.  For the
+    # CLI we explicitly prefer ``period`` if both are given.
+    if args.period:
+        df = fetch_ticker(args.ticker, period=args.period)
+    else:
+        df = fetch_ticker(args.ticker, start=args.start, end=args.end)
     trades = backtest_pattern(df, args.pattern)
     export_trades(trades, args.export)
 

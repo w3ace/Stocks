@@ -1,6 +1,6 @@
 import streamlit as st
 
-PATTERNS = ["3E", "3EC", "3D", "3DC", "3EU", "4EU"]
+PATTERNS = ["4OUED", "3OUED", "4DUED", "3DUED", "4ODEU", "3ODEU"]
 
 
 def pattern_selector() -> str:

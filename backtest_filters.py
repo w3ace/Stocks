@@ -251,7 +251,6 @@ def passes_filters(
     enabled = set(enabled)
     if i - 2 < 0:
         return False
-    print(df.iloc[i])
     d2 = df.iloc[i - 1]
     d3 = df.iloc[i - 2]
     if "price" in enabled and not (args.min_price <= d2["Close"] <= args.max_price):

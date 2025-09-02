@@ -41,24 +41,40 @@ def run_backtest_cached(
         ticker, pattern, start, end, args, cache_tag
     )
 
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        padding-left: .1rem;
+        padding-right: .1rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.title("Taygetus Backtest")
 
-tickers_input = st.text_input(
-    "Tickers",
-    "AAPL",
-    help=(
-        "Prefix with +<portfolio> to load tickers from the portfolios folder."
-    ),
-)
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 with col1:
+    tickers_input = st.text_input(
+        "Tickers",
+        "+vol500a",
+        help=(
+            "Prefix with +<portfolio> to load tickers from the portfolios folder."
+        ),
+    )
+with col2:
+    pattern = pattern_selector()
+with col3:
     start = st.date_input(
         "Start", dt.date.today() - dt.timedelta(days=30)
     )
-with col2:
+with col4:
     end = st.date_input("End", dt.date.today())
-with col3:
+with col5:
     period_options = [
         "5d",
         "1mo",
@@ -72,13 +88,12 @@ with col3:
         "max",
     ]
     period = st.selectbox("Period", period_options, index=4)
-with col4:
+with col6:
     max_out = st.number_input("Max tickers", min_value=1, value=20)
-pattern = pattern_selector()
 
 with st.expander("Indicator Filters"):
     enabled_ind = st.multiselect("Enable indicators", INDICATOR_CHOICES)
-    col_a, col_b = st.columns(2)
+    col_a, col_b, col_c = st.columns(3)
     with col_a:
         min_price = slider_with_input(
             "Min Price",
@@ -112,6 +127,7 @@ with st.expander("Indicator Filters"):
                 value=int(DEFAULT_FILTER_ARGS["above_sma"]),
             )
         )
+    with col_b:
         trend_slope = slider_with_input(
             "Trend Slope",
             min_value=-10.0,
@@ -144,7 +160,7 @@ with st.expander("Indicator Filters"):
             step=0.1,
             key="pullback_pct_max",
         )
-    with col_b:
+    with col_c:
         max_price = slider_with_input(
             "Max Price",
             min_value=0.0,

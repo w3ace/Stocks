@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Ebay Redirector",
+  "version": "1.0.0",
+  "description": "Redirects visits to ebay.com to the active listings page.",
+  "permissions": ["tabs", "webNavigation"],
+  "host_permissions": [
+    "https://www.ebay.com/*",
+    "http://www.ebay.com/*",
+    "https://ebay.com/*",
+    "http://ebay.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Ebay Redirector"
+  }
+}

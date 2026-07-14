@@ -68,12 +68,16 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
             "avg_after_gap_pct": 0.0,
             "avg_after_gap_up_pct": 0.0,
             "avg_after_gap_down_pct": 0.0,
+            "avg_max_up_pct": 0.0,
+            "avg_max_down_pct": 0.0,
         }
 
     df = df.sort_values("Date").copy()
     df["prev_close"] = df["Close"].shift(1)
     df["gap_pct"] = (df["Open"] - df["prev_close"]) / df["prev_close"] * 100
     df["after_gap_pct"] = (df["Close"] - df["Open"]) / df["Open"] * 100
+    df["max_up_pct"] = (df["High"] - df["Open"]) / df["Open"] * 100
+    df["max_down_pct"] = (df["Low"] - df["Open"]) / df["Open"] * 100
 
     in_range = df[
         (df["Date"].dt.date >= start.date())
@@ -98,6 +102,8 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
         "avg_after_gap_pct": float(gap_days["after_gap_pct"].mean()) if not gap_days.empty else 0.0,
         "avg_after_gap_up_pct": float(gap_up["after_gap_pct"].mean()) if not gap_up.empty else 0.0,
         "avg_after_gap_down_pct": float(gap_down["after_gap_pct"].mean()) if not gap_down.empty else 0.0,
+        "avg_max_up_pct": float(gap_up["max_up_pct"].mean()) if not gap_up.empty else 0.0,
+        "avg_max_down_pct": float(gap_down["max_down_pct"].mean()) if not gap_down.empty else 0.0,
     }
 
 

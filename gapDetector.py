@@ -96,7 +96,9 @@ def fetch_current_extended_gap(ticker: str) -> dict[str, float | str] | None:
         return None
 
     current_gap_pct = (latest_price - previous_close) / previous_close * 100
-    direction = "up" if current_gap_pct > 0 else "down" if current_gap_pct < 0 else "flat"
+    direction = (
+        "up" if current_gap_pct > 0 else "down" if current_gap_pct < 0 else "flat"
+    )
     return {
         "ticker": ticker,
         "current_gap_pct": current_gap_pct,
@@ -107,20 +109,32 @@ def fetch_current_extended_gap(ticker: str) -> dict[str, float | str] | None:
     }
 
 
-def current_gapping_tickers(
-    tickers: list[str], tolerance: float
+def current_gap_tickers(
+    tickers: list[str], tolerance: float, direction: str
 ) -> dict[str, dict[str, float | str]]:
-    """Return tickers whose latest extended-hours quote exceeds *tolerance*."""
+    """Return tickers currently gapping in the requested extended-hours direction."""
     min_gap = abs(tolerance)
-    gapping = {}
+    if direction not in {"up", "down"}:
+        raise ValueError("direction must be 'up' or 'down'")
+
+    current_gaps = {}
     for ticker in tickers:
         gap = fetch_current_extended_gap(ticker)
         if gap is None:
             continue
         current_gap_pct = float(gap["current_gap_pct"])
-        if (min_gap == 0 and current_gap_pct != 0) or abs(current_gap_pct) >= min_gap:
-            gapping[ticker] = gap
-    return gapping
+        meets_tolerance = (
+            current_gap_pct >= min_gap
+            if direction == "up"
+            else current_gap_pct <= -min_gap
+        )
+        if min_gap == 0:
+            meets_tolerance = (
+                current_gap_pct > 0 if direction == "up" else current_gap_pct < 0
+            )
+        if meets_tolerance:
+            current_gaps[ticker] = gap
+    return current_gaps
 
 
 def analyze_gaps(
@@ -338,11 +352,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--report",
-        choices=("up", "down", "both", "gapping"),
+        choices=("up", "down", "both", "gap_up", "gap_down"),
         default="both",
         help=(
-            "Gap direction data to report. Use gapping to first limit analysis to "
-            "tickers currently gapping in premarket or after-hours data (default: both)."
+            "Gap direction data to report. Use gap_up or gap_down to first limit "
+            "analysis to tickers currently gapping in that direction in premarket "
+            "or after-hours data (default: both)."
         ),
     )
     parser.add_argument(
@@ -356,10 +371,13 @@ def main() -> None:
     cache_tag = f"{start.date()}_{end.date()}"
     current_gaps = {}
     report = args.report
-    if report == "gapping":
-        current_gaps = current_gapping_tickers(tickers, args.tolerance)
+    if report in {"gap_up", "gap_down"}:
+        current_gap_direction = "up" if report == "gap_up" else "down"
+        current_gaps = current_gap_tickers(
+            tickers, args.tolerance, current_gap_direction
+        )
         tickers = list(current_gaps)
-        report = "both"
+        report = current_gap_direction
 
     rows = [
         analyze_gaps(ticker, start, end, args.tolerance, args.success, cache_tag)

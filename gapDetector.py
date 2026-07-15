@@ -199,9 +199,19 @@ def analyze_gaps(
             "avg_after_gap_down_pct": 0.0,
             "avg_max_up_pct": 0.0,
             "avg_max_down_pct": 0.0,
+            "success_up_close_pct": 0.0,
+            "success_up_max_reward_pct": 0.0,
             "success_up_pct": 0.0,
+            "success_down_close_pct": 0.0,
+            "success_down_max_reward_pct": 0.0,
             "success_down_pct": 0.0,
+            "success_both_close_pct": 0.0,
+            "success_both_max_reward_pct": 0.0,
             "success_both_pct": 0.0,
+            "risk_reward_up_close": 0.0,
+            "risk_reward_up_max_reward": 0.0,
+            "risk_reward_down_close": 0.0,
+            "risk_reward_down_max_reward": 0.0,
         }
 
     df = df.sort_values("Date").copy()
@@ -231,6 +241,14 @@ def analyze_gaps(
     gap_up_count = len(gap_up)
     gap_down_count = len(gap_down)
     gap_count = len(gap_days)
+    successful_gap_up_close_count = (
+        int((gap_up["after_gap_pct"] >= success_threshold).sum()) if gap_up_count else 0
+    )
+    successful_gap_up_max_reward_count = (
+        int((gap_up["max_up_pct"] >= success_threshold * 2).sum())
+        if gap_up_count
+        else 0
+    )
     successful_gap_up_count = (
         int(
             (
@@ -239,6 +257,16 @@ def analyze_gaps(
             ).sum()
         )
         if gap_up_count
+        else 0
+    )
+    successful_gap_down_close_count = (
+        int((gap_down["after_gap_pct"] <= -success_threshold).sum())
+        if gap_down_count
+        else 0
+    )
+    successful_gap_down_max_reward_count = (
+        int((gap_down["max_down_pct"] <= -(success_threshold * 2)).sum())
+        if gap_down_count
         else 0
     )
     successful_gap_down_count = (
@@ -251,7 +279,35 @@ def analyze_gaps(
         if gap_down_count
         else 0
     )
+    successful_gap_close_count = (
+        successful_gap_up_close_count + successful_gap_down_close_count
+    )
+    successful_gap_max_reward_count = (
+        successful_gap_up_max_reward_count + successful_gap_down_max_reward_count
+    )
     successful_gap_count = successful_gap_up_count + successful_gap_down_count
+
+    avg_gap_up_risk_pct = (
+        abs(float(gap_up["max_down_pct"].mean())) if not gap_up.empty else 0.0
+    )
+    avg_gap_down_risk_pct = (
+        float(gap_down["max_up_pct"].mean()) if not gap_down.empty else 0.0
+    )
+    avg_gap_up_close_reward_pct = (
+        float(gap_up["after_gap_pct"].mean()) if not gap_up.empty else 0.0
+    )
+    avg_gap_down_close_reward_pct = (
+        abs(float(gap_down["after_gap_pct"].mean())) if not gap_down.empty else 0.0
+    )
+    avg_gap_up_max_reward_pct = (
+        float(gap_up["max_up_pct"].mean()) if not gap_up.empty else 0.0
+    )
+    avg_gap_down_max_reward_pct = (
+        abs(float(gap_down["max_down_pct"].mean())) if not gap_down.empty else 0.0
+    )
+
+    def risk_reward(reward_pct: float, risk_pct: float) -> float:
+        return reward_pct / risk_pct if risk_pct > 0 else 0.0
 
     return {
         "ticker": ticker,
@@ -272,28 +328,58 @@ def analyze_gaps(
         "avg_after_gap_pct": (
             float(gap_days["after_gap_pct"].mean()) if not gap_days.empty else 0.0
         ),
-        "avg_after_gap_up_pct": (
-            float(gap_up["after_gap_pct"].mean()) if not gap_up.empty else 0.0
+        "avg_after_gap_up_pct": avg_gap_up_close_reward_pct,
+        "avg_after_gap_down_pct": -avg_gap_down_close_reward_pct,
+        "avg_max_up_pct": avg_gap_up_max_reward_pct,
+        "avg_max_down_pct": -avg_gap_down_max_reward_pct,
+        "success_up_close_pct": (
+            (successful_gap_up_close_count / gap_up_count * 100)
+            if gap_up_count
+            else 0.0
         ),
-        "avg_after_gap_down_pct": (
-            float(gap_down["after_gap_pct"].mean()) if not gap_down.empty else 0.0
-        ),
-        "avg_max_up_pct": (
-            float(gap_up["max_up_pct"].mean()) if not gap_up.empty else 0.0
-        ),
-        "avg_max_down_pct": (
-            float(gap_down["max_down_pct"].mean()) if not gap_down.empty else 0.0
+        "success_up_max_reward_pct": (
+            (successful_gap_up_max_reward_count / gap_up_count * 100)
+            if gap_up_count
+            else 0.0
         ),
         "success_up_pct": (
             (successful_gap_up_count / gap_up_count * 100) if gap_up_count else 0.0
+        ),
+        "success_down_close_pct": (
+            (successful_gap_down_close_count / gap_down_count * 100)
+            if gap_down_count
+            else 0.0
+        ),
+        "success_down_max_reward_pct": (
+            (successful_gap_down_max_reward_count / gap_down_count * 100)
+            if gap_down_count
+            else 0.0
         ),
         "success_down_pct": (
             (successful_gap_down_count / gap_down_count * 100)
             if gap_down_count
             else 0.0
         ),
+        "success_both_close_pct": (
+            (successful_gap_close_count / gap_count * 100) if gap_count else 0.0
+        ),
+        "success_both_max_reward_pct": (
+            (successful_gap_max_reward_count / gap_count * 100) if gap_count else 0.0
+        ),
         "success_both_pct": (
             (successful_gap_count / gap_count * 100) if gap_count else 0.0
+        ),
+        "risk_reward_up_close": risk_reward(
+            avg_gap_up_close_reward_pct, avg_gap_up_risk_pct
+        ),
+        "risk_reward_up_max_reward": risk_reward(
+            avg_gap_up_max_reward_pct, avg_gap_up_risk_pct
+        ),
+        "risk_reward_down_close": risk_reward(
+            avg_gap_down_close_reward_pct, avg_gap_down_risk_pct
+        ),
+        "risk_reward_down_max_reward": risk_reward(
+            avg_gap_down_max_reward_pct, avg_gap_down_risk_pct
         ),
     }
 
@@ -325,20 +411,30 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
         "gap_up_days_pct",
         "avg_after_gap_up_pct",
         "avg_max_up_pct",
+        "success_up_close_pct",
+        "success_up_max_reward_pct",
         "success_up_pct",
+        "risk_reward_up_close",
+        "risk_reward_up_max_reward",
     ]
     down_columns = [
         "gap_down_days",
         "gap_down_days_pct",
         "avg_after_gap_down_pct",
         "avg_max_down_pct",
+        "success_down_close_pct",
+        "success_down_max_reward_pct",
         "success_down_pct",
+        "risk_reward_down_close",
+        "risk_reward_down_max_reward",
     ]
     both_columns = [
         "gap_days",
         "gap_days_pct",
         "avg_gap_pct",
         "avg_after_gap_pct",
+        "success_both_close_pct",
+        "success_both_max_reward_pct",
         "success_both_pct",
     ]
     current_gap_columns = [

@@ -24,7 +24,7 @@ def test_analyze_gaps_reports_intraday_extremes(monkeypatch):
         }
     )
 
-    def fake_fetch_daily_data(ticker, start, end):
+    def fake_fetch_daily_data(ticker, start, end, cache_tag):
         return data
 
     monkeypatch.setattr(gapDetector, "fetch_daily_data", fake_fetch_daily_data)
@@ -34,9 +34,57 @@ def test_analyze_gaps_reports_intraday_extremes(monkeypatch):
         pd.Timestamp("2024-01-02"),
         pd.Timestamp("2024-01-03"),
         tolerance=0,
+        success=0,
+        cache_tag="test",
     )
 
     assert result["gap_up_days"] == 1
     assert result["gap_down_days"] == 1
     assert result["avg_max_up_pct"] == 10.0
     assert result["avg_max_down_pct"] == -10.0
+
+
+def test_fetch_current_extended_gap_uses_latest_extended_price(monkeypatch):
+    history = pd.DataFrame(
+        {"Close": [100.0, 102.0, 105.0]},
+        index=pd.to_datetime(
+            [
+                "2024-01-02 15:59",
+                "2024-01-02 16:00",
+                "2024-01-02 16:30",
+            ]
+        ),
+    )
+
+    class FakeTicker:
+        def __init__(self, ticker):
+            self.ticker = ticker
+
+        def history(self, **kwargs):
+            assert kwargs["prepost"] is True
+            return history
+
+    monkeypatch.setattr(gapDetector.yf, "Ticker", FakeTicker)
+
+    result = gapDetector.fetch_current_extended_gap("FAKE")
+
+    assert result["ticker"] == "FAKE"
+    assert result["current_gap_pct"] == 2.941176470588235
+    assert result["current_gap_direction"] == "up"
+
+
+def test_current_gapping_tickers_filters_by_absolute_tolerance(monkeypatch):
+    gaps = {
+        "UP": {"ticker": "UP", "current_gap_pct": 2.0},
+        "DOWN": {"ticker": "DOWN", "current_gap_pct": -1.5},
+        "FLAT": {"ticker": "FLAT", "current_gap_pct": 0.5},
+    }
+
+    monkeypatch.setattr(
+        gapDetector, "fetch_current_extended_gap", lambda ticker: gaps[ticker]
+    )
+
+    assert list(gapDetector.current_gapping_tickers(["UP", "DOWN", "FLAT"], 1.0)) == [
+        "UP",
+        "DOWN",
+    ]

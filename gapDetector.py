@@ -2,9 +2,13 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
+import yfinance as yf
 from portfolio_utils import expand_ticker_args
 from backtest_filters import fetch_daily_data as fetch_cached_daily_data
 from stock_functions import period_to_start_end, round_numeric_cols
+
+REGULAR_MARKET_OPEN = pd.Timestamp("09:30").time()
+REGULAR_MARKET_CLOSE = pd.Timestamp("16:00").time()
 
 try:
     from tabulate import tabulate
@@ -49,6 +53,74 @@ def fetch_daily_data(
     df = flatten_yfinance_columns(df)
     df["Date"] = pd.to_datetime(df["Date"]).dt.tz_localize(None)
     return df
+
+
+def is_regular_market_time(timestamp: pd.Timestamp) -> bool:
+    """Return True when *timestamp* falls inside regular US market hours."""
+    ts = pd.Timestamp(timestamp)
+    # yfinance returns exchange-local timestamps for this history call, so use the
+    # timestamp's displayed wall-clock time instead of requiring local tzdata.
+    market_time = ts.time()
+    return REGULAR_MARKET_OPEN <= market_time <= REGULAR_MARKET_CLOSE
+
+
+def fetch_current_extended_gap(ticker: str) -> dict[str, float | str] | None:
+    """Return the current extended-hours gap for *ticker*, if available."""
+    history = yf.Ticker(ticker).history(
+        period="5d", interval="1m", prepost=True, auto_adjust=False
+    )
+    if history.empty or "Close" not in history.columns:
+        return None
+
+    history = flatten_yfinance_columns(history).dropna(subset=["Close"]).copy()
+    if history.empty:
+        return None
+
+    if not isinstance(history.index, pd.DatetimeIndex):
+        history.index = pd.to_datetime(history.index)
+
+    latest_row = history.iloc[-1]
+    latest_timestamp = pd.Timestamp(history.index[-1])
+    if is_regular_market_time(latest_timestamp):
+        return None
+
+    regular_rows = history[
+        history.index.map(is_regular_market_time) & (history.index < latest_timestamp)
+    ]
+    if regular_rows.empty:
+        return None
+
+    previous_close = float(regular_rows.iloc[-1]["Close"])
+    latest_price = float(latest_row["Close"])
+    if previous_close == 0:
+        return None
+
+    current_gap_pct = (latest_price - previous_close) / previous_close * 100
+    direction = "up" if current_gap_pct > 0 else "down" if current_gap_pct < 0 else "flat"
+    return {
+        "ticker": ticker,
+        "current_gap_pct": current_gap_pct,
+        "current_extended_price": latest_price,
+        "previous_regular_close": previous_close,
+        "current_gap_direction": direction,
+        "current_extended_timestamp": latest_timestamp.isoformat(),
+    }
+
+
+def current_gapping_tickers(
+    tickers: list[str], tolerance: float
+) -> dict[str, dict[str, float | str]]:
+    """Return tickers whose latest extended-hours quote exceeds *tolerance*."""
+    min_gap = abs(tolerance)
+    gapping = {}
+    for ticker in tickers:
+        gap = fetch_current_extended_gap(ticker)
+        if gap is None:
+            continue
+        current_gap_pct = float(gap["current_gap_pct"])
+        if (min_gap == 0 and current_gap_pct != 0) or abs(current_gap_pct) >= min_gap:
+            gapping[ticker] = gap
+    return gapping
 
 
 def analyze_gaps(
@@ -216,6 +288,13 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
         "avg_after_gap_pct",
         "success_both_pct",
     ]
+    current_gap_columns = [
+        "current_gap_pct",
+        "current_extended_price",
+        "previous_regular_close",
+        "current_gap_direction",
+        "current_extended_timestamp",
+    ]
 
     if report == "up":
         columns = shared_columns + up_columns
@@ -224,7 +303,8 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
     else:
         columns = shared_columns + up_columns + down_columns + both_columns
 
-    return summary[columns]
+    columns += [column for column in current_gap_columns if column in summary.columns]
+    return summary.reindex(columns=columns)
 
 
 def main() -> None:
@@ -258,9 +338,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--report",
-        choices=("up", "down", "both"),
+        choices=("up", "down", "both", "gapping"),
         default="both",
-        help="Gap direction data to report (default: both)",
+        help=(
+            "Gap direction data to report. Use gapping to first limit analysis to "
+            "tickers currently gapping in premarket or after-hours data (default: both)."
+        ),
     )
     parser.add_argument(
         "--csv-out",
@@ -271,11 +354,22 @@ def main() -> None:
     tickers = expand_ticker_args(args.ticker)
     start, end = parse_date_range(args.period, args.start, args.end)
     cache_tag = f"{start.date()}_{end.date()}"
+    current_gaps = {}
+    report = args.report
+    if report == "gapping":
+        current_gaps = current_gapping_tickers(tickers, args.tolerance)
+        tickers = list(current_gaps)
+        report = "both"
+
     rows = [
         analyze_gaps(ticker, start, end, args.tolerance, args.success, cache_tag)
         for ticker in tickers
     ]
-    summary = filter_report_columns(round_numeric_cols(pd.DataFrame(rows)), args.report)
+    summary = round_numeric_cols(pd.DataFrame(rows))
+    if current_gaps and not summary.empty:
+        current_gap_summary = pd.DataFrame(current_gaps.values())
+        summary = summary.merge(current_gap_summary, on="ticker", how="left")
+    summary = filter_report_columns(summary, report)
 
     if tabulate:
         print(tabulate(summary, headers="keys", tablefmt="grid", showindex=False))

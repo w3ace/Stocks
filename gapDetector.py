@@ -109,10 +109,24 @@ def analyze_gaps(
     gap_count = len(gap_days)
     success = abs(success)
     successful_gap_up_count = (
-        int((gap_up["after_gap_pct"] >= success).sum()) if gap_up_count else 0
+        int(
+            (
+                (gap_up["after_gap_pct"] >= success)
+                | (gap_up["max_up_pct"] >= success * 2)
+            ).sum()
+        )
+        if gap_up_count
+        else 0
     )
     successful_gap_down_count = (
-        int((gap_down["after_gap_pct"] <= -success).sum()) if gap_down_count else 0
+        int(
+            (
+                (gap_down["after_gap_pct"] <= -success)
+                | (gap_down["max_down_pct"] <= -(success * 2))
+            ).sum()
+        )
+        if gap_down_count
+        else 0
     )
     successful_gap_count = successful_gap_up_count + successful_gap_down_count
 

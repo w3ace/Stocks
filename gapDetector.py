@@ -154,19 +154,14 @@ def analyze_gaps(
             "days_analyzed": 0,
             "gap_up_days": 0,
             "gap_down_days": 0,
-            "gap_days": 0,
-            "gap_days_pct": 0.0,
             "gap_up_days_pct": 0.0,
             "gap_down_days_pct": 0.0,
-            "avg_gap_pct": 0.0,
-            "avg_after_gap_pct": 0.0,
             "avg_after_gap_up_pct": 0.0,
             "avg_after_gap_down_pct": 0.0,
             "avg_max_up_pct": 0.0,
             "avg_max_down_pct": 0.0,
             "success_up_pct": 0.0,
             "success_down_pct": 0.0,
-            "success_both_pct": 0.0,
         }
 
     df = df.sort_values("Date").copy()
@@ -187,12 +182,9 @@ def analyze_gaps(
     else:
         gap_up = in_range[in_range["gap_pct"] >= tolerance]
         gap_down = in_range[in_range["gap_pct"] <= -tolerance]
-    gap_days = pd.concat([gap_up, gap_down]).sort_values("Date")
-
     days_analyzed = len(in_range)
     gap_up_count = len(gap_up)
     gap_down_count = len(gap_down)
-    gap_count = len(gap_days)
     success = abs(success)
     successful_gap_up_count = (
         int(
@@ -214,24 +206,16 @@ def analyze_gaps(
         if gap_down_count
         else 0
     )
-    successful_gap_count = successful_gap_up_count + successful_gap_down_count
-
     return {
         "ticker": ticker,
         "days_analyzed": int(days_analyzed),
         "gap_up_days": int(gap_up_count),
         "gap_down_days": int(gap_down_count),
-        "gap_days": int(gap_count),
-        "gap_days_pct": (gap_count / days_analyzed * 100) if days_analyzed else 0.0,
         "gap_up_days_pct": (
             (gap_up_count / days_analyzed * 100) if days_analyzed else 0.0
         ),
         "gap_down_days_pct": (
             (gap_down_count / days_analyzed * 100) if days_analyzed else 0.0
-        ),
-        "avg_gap_pct": float(gap_days["gap_pct"].mean()) if not gap_days.empty else 0.0,
-        "avg_after_gap_pct": (
-            float(gap_days["after_gap_pct"].mean()) if not gap_days.empty else 0.0
         ),
         "avg_after_gap_up_pct": (
             float(gap_up["after_gap_pct"].mean()) if not gap_up.empty else 0.0
@@ -252,9 +236,6 @@ def analyze_gaps(
             (successful_gap_down_count / gap_down_count * 100)
             if gap_down_count
             else 0.0
-        ),
-        "success_both_pct": (
-            (successful_gap_count / gap_count * 100) if gap_count else 0.0
         ),
     }
 
@@ -295,13 +276,6 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
         "avg_max_down_pct",
         "success_down_pct",
     ]
-    both_columns = [
-        "gap_days",
-        "gap_days_pct",
-        "avg_gap_pct",
-        "avg_after_gap_pct",
-        "success_both_pct",
-    ]
     current_gap_columns = [
         "current_gap_pct",
         "current_extended_price",
@@ -315,7 +289,7 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
     elif report == "down":
         columns = shared_columns + down_columns
     else:
-        columns = shared_columns + up_columns + down_columns + both_columns
+        raise ValueError("report must be 'up' or 'down'")
 
     columns += [column for column in current_gap_columns if column in summary.columns]
     return summary.reindex(columns=columns)
@@ -352,12 +326,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--report",
-        choices=("up", "down", "both", "gap_up", "gap_down"),
-        default="both",
+        choices=("up", "down", "gap_up", "gap_down"),
+        required=True,
         help=(
             "Gap direction data to report. Use gap_up or gap_down to first limit "
             "analysis to tickers currently gapping in that direction in premarket "
-            "or after-hours data (default: both)."
+            "or after-hours data."
         ),
     )
     parser.add_argument(
@@ -388,6 +362,9 @@ def main() -> None:
         current_gap_summary = pd.DataFrame(current_gaps.values())
         summary = summary.merge(current_gap_summary, on="ticker", how="left")
     summary = filter_report_columns(summary, report)
+    success_column = "success_up_pct" if report == "up" else "success_down_pct"
+    if success_column in summary.columns:
+        summary = summary[summary[success_column] >= 50]
 
     if tabulate:
         print(tabulate(summary, headers="keys", tablefmt="grid", showindex=False))

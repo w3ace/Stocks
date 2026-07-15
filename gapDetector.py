@@ -64,6 +64,9 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
             "gap_up_days": 0,
             "gap_down_days": 0,
             "gap_days": 0,
+            "gap_days_pct": 0.0,
+            "gap_up_days_pct": 0.0,
+            "gap_down_days_pct": 0.0,
             "avg_gap_pct": 0.0,
             "avg_after_gap_pct": 0.0,
             "avg_after_gap_up_pct": 0.0,
@@ -92,12 +95,20 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
         gap_down = in_range[in_range["gap_pct"] <= -tolerance]
     gap_days = pd.concat([gap_up, gap_down]).sort_values("Date")
 
+    days_analyzed = len(in_range)
+    gap_up_count = len(gap_up)
+    gap_down_count = len(gap_down)
+    gap_count = len(gap_days)
+
     return {
         "ticker": ticker,
-        "days_analyzed": int(len(in_range)),
-        "gap_up_days": int(len(gap_up)),
-        "gap_down_days": int(len(gap_down)),
-        "gap_days": int(len(gap_days)),
+        "days_analyzed": int(days_analyzed),
+        "gap_up_days": int(gap_up_count),
+        "gap_down_days": int(gap_down_count),
+        "gap_days": int(gap_count),
+        "gap_days_pct": (gap_count / days_analyzed * 100) if days_analyzed else 0.0,
+        "gap_up_days_pct": (gap_up_count / days_analyzed * 100) if days_analyzed else 0.0,
+        "gap_down_days_pct": (gap_down_count / days_analyzed * 100) if days_analyzed else 0.0,
         "avg_gap_pct": float(gap_days["gap_pct"].mean()) if not gap_days.empty else 0.0,
         "avg_after_gap_pct": float(gap_days["after_gap_pct"].mean()) if not gap_days.empty else 0.0,
         "avg_after_gap_up_pct": float(gap_up["after_gap_pct"].mean()) if not gap_up.empty else 0.0,
@@ -105,6 +116,42 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
         "avg_max_up_pct": float(gap_up["max_up_pct"].mean()) if not gap_up.empty else 0.0,
         "avg_max_down_pct": float(gap_down["max_down_pct"].mean()) if not gap_down.empty else 0.0,
     }
+
+
+def unique_output_path(filename: str | None) -> Path:
+    """Return a non-existing path in the output directory, adding a digit if needed."""
+    output_dir = Path("output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    base_name = Path(filename).name if filename else "gap_summary.csv"
+    output_path = output_dir / base_name
+    if not output_path.exists():
+        return output_path
+
+    stem = output_path.stem
+    suffix = output_path.suffix
+    counter = 1
+    while True:
+        candidate = output_dir / f"{stem}{counter}{suffix}"
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
+    """Limit gap summary columns to the requested report direction."""
+    shared_columns = ["ticker", "days_analyzed"]
+    up_columns = ["gap_up_days", "gap_up_days_pct", "avg_after_gap_up_pct", "avg_max_up_pct"]
+    down_columns = ["gap_down_days", "gap_down_days_pct", "avg_after_gap_down_pct", "avg_max_down_pct"]
+    both_columns = ["gap_days", "gap_days_pct", "avg_gap_pct", "avg_after_gap_pct"]
+
+    if report == "up":
+        columns = shared_columns + up_columns
+    elif report == "down":
+        columns = shared_columns + down_columns
+    else:
+        columns = shared_columns + up_columns + down_columns + both_columns
+
+    return summary[columns]
 
 
 def main() -> None:
@@ -120,26 +167,30 @@ def main() -> None:
         help="Minimum absolute previous-close-to-open gap percentage required to count (default 0)",
     )
     parser.add_argument(
+        "--report",
+        choices=("up", "down", "both"),
+        default="both",
+        help="Gap direction data to report (default: both)",
+    )
+    parser.add_argument(
         "--csv-out",
-        help="Optional CSV path for the ticker summary output",
+        help="Optional CSV filename for the ticker summary output; files are always saved under output/",
     )
     args = parser.parse_args()
 
     tickers = expand_ticker_args(args.ticker)
     start, end = parse_date_range(args.period, args.start, args.end)
     rows = [analyze_gaps(ticker, start, end, args.tolerance) for ticker in tickers]
-    summary = round_numeric_cols(pd.DataFrame(rows))
+    summary = filter_report_columns(round_numeric_cols(pd.DataFrame(rows)), args.report)
 
     if tabulate:
         print(tabulate(summary, headers="keys", tablefmt="grid", showindex=False))
     else:
         print(summary.to_string(index=False))
 
-    if args.csv_out:
-        output_path = Path(args.csv_out)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        summary.to_csv(output_path, index=False)
-        print(f"Gap summary saved to {output_path}")
+    output_path = unique_output_path(args.csv_out)
+    summary.to_csv(output_path, index=False)
+    print(f"Gap summary saved to {output_path}")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -41,6 +42,19 @@ def test_analyze_gaps_reports_intraday_extremes(monkeypatch):
     assert result["gap_down_days"] == 1
     assert result["avg_max_up_pct"] == 10.0
     assert result["avg_max_down_pct"] == -10.0
+    assert result["success_up_close_pct"] == 100.0
+    assert result["success_up_max_reward_pct"] == 100.0
+    assert result["success_up_pct"] == 100.0
+    assert result["success_down_close_pct"] == 100.0
+    assert result["success_down_max_reward_pct"] == 100.0
+    assert result["success_down_pct"] == 100.0
+    assert result["success_both_close_pct"] == 100.0
+    assert result["success_both_max_reward_pct"] == 100.0
+    assert result["success_both_pct"] == 100.0
+    assert result["risk_reward_up_close"] == 1.0
+    assert result["risk_reward_up_max_reward"] == pytest.approx(2.2)
+    assert result["risk_reward_down_close"] == 1.0
+    assert result["risk_reward_down_max_reward"] == pytest.approx(1.8)
 
 
 def test_fetch_current_extended_gap_uses_latest_extended_price(monkeypatch):
@@ -82,12 +96,22 @@ def test_current_gap_tickers_filters_by_direction_and_tolerance(monkeypatch):
     monkeypatch.setattr(
         gapDetector, "fetch_current_extended_gap", lambda ticker: gaps[ticker]
     )
+    monkeypatch.setattr(gapDetector, "fetch_daily_data", lambda *args: pd.DataFrame())
+    monkeypatch.setattr(gapDetector, "calculate_atr", lambda data: (0.0, 1.0))
+    start = pd.Timestamp("2024-01-01")
+    end = pd.Timestamp("2024-01-31")
 
-    assert list(gapDetector.current_gap_tickers(["UP", "DOWN", "FLAT"], 1.0, "up")) == [
+    assert list(
+        gapDetector.current_gap_tickers(
+            ["UP", "DOWN", "FLAT"], 1.0, "up", start, end, "test"
+        )
+    ) == [
         "UP",
     ]
     assert list(
-        gapDetector.current_gap_tickers(["UP", "DOWN", "FLAT"], 1.0, "down")
+        gapDetector.current_gap_tickers(
+            ["UP", "DOWN", "FLAT"], 1.0, "down", start, end, "test"
+        )
     ) == [
         "DOWN",
     ]

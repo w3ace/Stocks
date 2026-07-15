@@ -42,6 +42,12 @@ def test_analyze_gaps_reports_intraday_extremes(monkeypatch):
     assert result["gap_down_days"] == 1
     assert result["avg_max_up_pct"] == 10.0
     assert result["avg_max_down_pct"] == -10.0
+    assert result["avg_risk_up_pct"] == pytest.approx(4.545454545454546)
+    assert result["greatest_risk_up_pct"] == pytest.approx(4.545454545454546)
+    assert result["avg_risk_down_pct"] == pytest.approx(5.555555555555555)
+    assert result["greatest_risk_down_pct"] == pytest.approx(5.555555555555555)
+    assert result["avg_risk_both_pct"] == pytest.approx(5.05050505050505)
+    assert result["greatest_risk_both_pct"] == pytest.approx(5.555555555555555)
     assert result["success_up_close_pct"] == 100.0
     assert result["success_up_max_reward_pct"] == 100.0
     assert result["success_up_pct"] == 100.0

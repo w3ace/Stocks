@@ -199,6 +199,12 @@ def analyze_gaps(
             "avg_after_gap_down_pct": 0.0,
             "avg_max_up_pct": 0.0,
             "avg_max_down_pct": 0.0,
+            "avg_risk_up_pct": 0.0,
+            "greatest_risk_up_pct": 0.0,
+            "avg_risk_down_pct": 0.0,
+            "greatest_risk_down_pct": 0.0,
+            "avg_risk_both_pct": 0.0,
+            "greatest_risk_both_pct": 0.0,
             "success_up_close_pct": 0.0,
             "success_up_max_reward_pct": 0.0,
             "success_up_pct": 0.0,
@@ -305,6 +311,17 @@ def analyze_gaps(
     avg_gap_down_max_reward_pct = (
         abs(float(gap_down["max_down_pct"].mean())) if not gap_down.empty else 0.0
     )
+    greatest_gap_up_risk_pct = (
+        abs(float(gap_up["max_down_pct"].min())) if not gap_up.empty else 0.0
+    )
+    greatest_gap_down_risk_pct = (
+        float(gap_down["max_up_pct"].max()) if not gap_down.empty else 0.0
+    )
+    gap_risk_pct = pd.concat(
+        [gap_up["max_down_pct"].abs(), gap_down["max_up_pct"]]
+    )
+    avg_gap_risk_pct = float(gap_risk_pct.mean()) if not gap_risk_pct.empty else 0.0
+    greatest_gap_risk_pct = float(gap_risk_pct.max()) if not gap_risk_pct.empty else 0.0
 
     def risk_reward(reward_pct: float, risk_pct: float) -> float:
         return reward_pct / risk_pct if risk_pct > 0 else 0.0
@@ -332,6 +349,12 @@ def analyze_gaps(
         "avg_after_gap_down_pct": -avg_gap_down_close_reward_pct,
         "avg_max_up_pct": avg_gap_up_max_reward_pct,
         "avg_max_down_pct": -avg_gap_down_max_reward_pct,
+        "avg_risk_up_pct": avg_gap_up_risk_pct,
+        "greatest_risk_up_pct": greatest_gap_up_risk_pct,
+        "avg_risk_down_pct": avg_gap_down_risk_pct,
+        "greatest_risk_down_pct": greatest_gap_down_risk_pct,
+        "avg_risk_both_pct": avg_gap_risk_pct,
+        "greatest_risk_both_pct": greatest_gap_risk_pct,
         "success_up_close_pct": (
             (successful_gap_up_close_count / gap_up_count * 100)
             if gap_up_count
@@ -411,6 +434,8 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
         "gap_up_days_pct",
         "avg_after_gap_up_pct",
         "avg_max_up_pct",
+        "avg_risk_up_pct",
+        "greatest_risk_up_pct",
         "success_up_close_pct",
         "success_up_max_reward_pct",
         "success_up_pct",
@@ -422,6 +447,8 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
         "gap_down_days_pct",
         "avg_after_gap_down_pct",
         "avg_max_down_pct",
+        "avg_risk_down_pct",
+        "greatest_risk_down_pct",
         "success_down_close_pct",
         "success_down_max_reward_pct",
         "success_down_pct",
@@ -433,6 +460,8 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
         "gap_days_pct",
         "avg_gap_pct",
         "avg_after_gap_pct",
+        "avg_risk_both_pct",
+        "greatest_risk_both_pct",
         "success_both_close_pct",
         "success_both_max_reward_pct",
         "success_both_pct",

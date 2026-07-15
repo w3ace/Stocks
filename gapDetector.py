@@ -110,15 +110,22 @@ def fetch_current_extended_gap(ticker: str) -> dict[str, float | str] | None:
 
 
 def current_gap_tickers(
-    tickers: list[str], tolerance: float, direction: str
+    tickers: list[str],
+    tolerance: float,
+    direction: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    cache_tag: str,
 ) -> dict[str, dict[str, float | str]]:
     """Return tickers currently gapping in the requested extended-hours direction."""
-    min_gap = abs(tolerance)
     if direction not in {"up", "down"}:
         raise ValueError("direction must be 'up' or 'down'")
 
     current_gaps = {}
     for ticker in tickers:
+        daily_data = fetch_daily_data(ticker, start, end, cache_tag)
+        atr_raw, atr_pct = calculate_atr(daily_data)
+        min_gap = abs(tolerance) * atr_pct
         gap = fetch_current_extended_gap(ticker)
         if gap is None:
             continue
@@ -135,6 +142,32 @@ def current_gap_tickers(
         if meets_tolerance:
             current_gaps[ticker] = gap
     return current_gaps
+
+
+def calculate_atr(df: pd.DataFrame) -> tuple[float, float]:
+    """Return average true range as raw dollars and a percentage of close."""
+    if df.empty:
+        return 0.0, 0.0
+
+    required_columns = {"High", "Low", "Close"}
+    if not required_columns.issubset(df.columns):
+        return 0.0, 0.0
+
+    atr_df = df.sort_values("Date").copy()
+    prev_close = atr_df["Close"].shift(1)
+    true_range = pd.concat(
+        [
+            atr_df["High"] - atr_df["Low"],
+            (atr_df["High"] - prev_close).abs(),
+            (atr_df["Low"] - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    atr_pct = true_range / atr_df["Close"] * 100
+    return (
+        float(true_range.mean()) if not true_range.empty else 0.0,
+        float(atr_pct.mean()) if not atr_pct.empty else 0.0,
+    )
 
 
 def analyze_gaps(
@@ -158,6 +191,8 @@ def analyze_gaps(
             "gap_days_pct": 0.0,
             "gap_up_days_pct": 0.0,
             "gap_down_days_pct": 0.0,
+            "atr_raw": 0.0,
+            "atr_pct": 0.0,
             "avg_gap_pct": 0.0,
             "avg_after_gap_pct": 0.0,
             "avg_after_gap_up_pct": 0.0,
@@ -170,6 +205,9 @@ def analyze_gaps(
         }
 
     df = df.sort_values("Date").copy()
+    atr_raw, atr_pct = calculate_atr(df)
+    tolerance_threshold = abs(tolerance) * atr_pct
+    success_threshold = abs(success) * atr_pct
     df["prev_close"] = df["Close"].shift(1)
     df["gap_pct"] = (df["Open"] - df["prev_close"]) / df["prev_close"] * 100
     df["after_gap_pct"] = (df["Close"] - df["Open"]) / df["Open"] * 100
@@ -181,24 +219,23 @@ def analyze_gaps(
         & (df["Date"].dt.date <= end.date())
         & df["prev_close"].notna()
     ].copy()
-    if tolerance == 0:
+    if tolerance_threshold == 0:
         gap_up = in_range[in_range["gap_pct"] > 0]
         gap_down = in_range[in_range["gap_pct"] < 0]
     else:
-        gap_up = in_range[in_range["gap_pct"] >= tolerance]
-        gap_down = in_range[in_range["gap_pct"] <= -tolerance]
+        gap_up = in_range[in_range["gap_pct"] >= tolerance_threshold]
+        gap_down = in_range[in_range["gap_pct"] <= -tolerance_threshold]
     gap_days = pd.concat([gap_up, gap_down]).sort_values("Date")
 
     days_analyzed = len(in_range)
     gap_up_count = len(gap_up)
     gap_down_count = len(gap_down)
     gap_count = len(gap_days)
-    success = abs(success)
     successful_gap_up_count = (
         int(
             (
-                (gap_up["after_gap_pct"] >= success)
-                | (gap_up["max_up_pct"] >= success * 2)
+                (gap_up["after_gap_pct"] >= success_threshold)
+                | (gap_up["max_up_pct"] >= success_threshold * 2)
             ).sum()
         )
         if gap_up_count
@@ -207,8 +244,8 @@ def analyze_gaps(
     successful_gap_down_count = (
         int(
             (
-                (gap_down["after_gap_pct"] <= -success)
-                | (gap_down["max_down_pct"] <= -(success * 2))
+                (gap_down["after_gap_pct"] <= -success_threshold)
+                | (gap_down["max_down_pct"] <= -(success_threshold * 2))
             ).sum()
         )
         if gap_down_count
@@ -222,6 +259,8 @@ def analyze_gaps(
         "gap_up_days": int(gap_up_count),
         "gap_down_days": int(gap_down_count),
         "gap_days": int(gap_count),
+        "atr_raw": atr_raw,
+        "atr_pct": atr_pct,
         "gap_days_pct": (gap_count / days_analyzed * 100) if days_analyzed else 0.0,
         "gap_up_days_pct": (
             (gap_up_count / days_analyzed * 100) if days_analyzed else 0.0
@@ -280,7 +319,7 @@ def unique_output_path(filename: str | None) -> Path:
 
 def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
     """Limit gap summary columns to the requested report direction."""
-    shared_columns = ["ticker", "days_analyzed"]
+    shared_columns = ["ticker", "days_analyzed", "atr_raw", "atr_pct"]
     up_columns = [
         "gap_up_days",
         "gap_up_days_pct",
@@ -374,7 +413,7 @@ def main() -> None:
     if report in {"gap_up", "gap_down"}:
         current_gap_direction = "up" if report == "gap_up" else "down"
         current_gaps = current_gap_tickers(
-            tickers, args.tolerance, current_gap_direction
+            tickers, args.tolerance, current_gap_direction, start, end, cache_tag
         )
         tickers = list(current_gaps)
         report = current_gap_direction

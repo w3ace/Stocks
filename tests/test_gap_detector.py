@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 MODULE_PATH = REPO_ROOT / "gapDetector.py"
@@ -73,7 +72,7 @@ def test_fetch_current_extended_gap_uses_latest_extended_price(monkeypatch):
     assert result["current_gap_direction"] == "up"
 
 
-def test_current_gapping_tickers_filters_by_absolute_tolerance(monkeypatch):
+def test_current_gap_tickers_filters_by_direction_and_tolerance(monkeypatch):
     gaps = {
         "UP": {"ticker": "UP", "current_gap_pct": 2.0},
         "DOWN": {"ticker": "DOWN", "current_gap_pct": -1.5},
@@ -84,7 +83,11 @@ def test_current_gapping_tickers_filters_by_absolute_tolerance(monkeypatch):
         gapDetector, "fetch_current_extended_gap", lambda ticker: gaps[ticker]
     )
 
-    assert list(gapDetector.current_gapping_tickers(["UP", "DOWN", "FLAT"], 1.0)) == [
+    assert list(gapDetector.current_gap_tickers(["UP", "DOWN", "FLAT"], 1.0, "up")) == [
         "UP",
+    ]
+    assert list(
+        gapDetector.current_gap_tickers(["UP", "DOWN", "FLAT"], 1.0, "down")
+    ) == [
         "DOWN",
     ]

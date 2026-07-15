@@ -1,10 +1,9 @@
 import argparse
-from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
-import yfinance as yf
 from portfolio_utils import expand_ticker_args
+from backtest_filters import fetch_daily_data as fetch_cached_daily_data
 from stock_functions import period_to_start_end, round_numeric_cols
 
 try:
@@ -13,7 +12,9 @@ except ImportError:  # pragma: no cover - optional dependency
     tabulate = None
 
 
-def parse_date_range(period: str | None, start: str | None, end: str | None) -> tuple[pd.Timestamp, pd.Timestamp]:
+def parse_date_range(
+    period: str | None, start: str | None, end: str | None
+) -> tuple[pd.Timestamp, pd.Timestamp]:
     """Return inclusive start/end timestamps from CLI date parameters."""
     if period:
         start_dt, end_dt = period_to_start_end(period)
@@ -34,29 +35,33 @@ def flatten_yfinance_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def fetch_daily_data(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    """Download daily bars for *ticker* with one extra prior day for gap detection."""
-    download_start = (start - timedelta(days=10)).strftime("%Y-%m-%d")
-    download_end = (end + timedelta(days=1)).strftime("%Y-%m-%d")
-    df = yf.download(
-        ticker,
-        start=download_start,
-        end=download_end,
-        interval="1d",
-        auto_adjust=False,
-        progress=False,
+def fetch_daily_data(
+    ticker: str, start: pd.Timestamp, end: pd.Timestamp, cache_tag: str
+) -> pd.DataFrame:
+    """Fetch daily bars for *ticker* with one extra prior day for gap detection."""
+    fetch_start = start - pd.Timedelta(days=10)
+    fetch_end = end + pd.Timedelta(days=1)
+    df = fetch_cached_daily_data(
+        ticker, fetch_start, fetch_end, cache_tag, "gapDetector"
     )
     if df.empty:
         return df
-    df = flatten_yfinance_columns(df).reset_index()
+    df = flatten_yfinance_columns(df)
     df["Date"] = pd.to_datetime(df["Date"]).dt.tz_localize(None)
     return df
 
 
-def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance: float) -> dict[str, float | int | str]:
+def analyze_gaps(
+    ticker: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    tolerance: float,
+    success: float,
+    cache_tag: str,
+) -> dict[str, float | int | str]:
     """Summarize significant previous-close-to-open gaps for a ticker."""
     tolerance = abs(tolerance)
-    df = fetch_daily_data(ticker, start, end)
+    df = fetch_daily_data(ticker, start, end, cache_tag)
     if df.empty:
         return {
             "ticker": ticker,
@@ -73,6 +78,9 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
             "avg_after_gap_down_pct": 0.0,
             "avg_max_up_pct": 0.0,
             "avg_max_down_pct": 0.0,
+            "success_up_pct": 0.0,
+            "success_down_pct": 0.0,
+            "success_both_pct": 0.0,
         }
 
     df = df.sort_values("Date").copy()
@@ -99,6 +107,14 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
     gap_up_count = len(gap_up)
     gap_down_count = len(gap_down)
     gap_count = len(gap_days)
+    success = abs(success)
+    successful_gap_up_count = (
+        int((gap_up["after_gap_pct"] >= success).sum()) if gap_up_count else 0
+    )
+    successful_gap_down_count = (
+        int((gap_down["after_gap_pct"] <= -success).sum()) if gap_down_count else 0
+    )
+    successful_gap_count = successful_gap_up_count + successful_gap_down_count
 
     return {
         "ticker": ticker,
@@ -107,14 +123,39 @@ def analyze_gaps(ticker: str, start: pd.Timestamp, end: pd.Timestamp, tolerance:
         "gap_down_days": int(gap_down_count),
         "gap_days": int(gap_count),
         "gap_days_pct": (gap_count / days_analyzed * 100) if days_analyzed else 0.0,
-        "gap_up_days_pct": (gap_up_count / days_analyzed * 100) if days_analyzed else 0.0,
-        "gap_down_days_pct": (gap_down_count / days_analyzed * 100) if days_analyzed else 0.0,
+        "gap_up_days_pct": (
+            (gap_up_count / days_analyzed * 100) if days_analyzed else 0.0
+        ),
+        "gap_down_days_pct": (
+            (gap_down_count / days_analyzed * 100) if days_analyzed else 0.0
+        ),
         "avg_gap_pct": float(gap_days["gap_pct"].mean()) if not gap_days.empty else 0.0,
-        "avg_after_gap_pct": float(gap_days["after_gap_pct"].mean()) if not gap_days.empty else 0.0,
-        "avg_after_gap_up_pct": float(gap_up["after_gap_pct"].mean()) if not gap_up.empty else 0.0,
-        "avg_after_gap_down_pct": float(gap_down["after_gap_pct"].mean()) if not gap_down.empty else 0.0,
-        "avg_max_up_pct": float(gap_up["max_up_pct"].mean()) if not gap_up.empty else 0.0,
-        "avg_max_down_pct": float(gap_down["max_down_pct"].mean()) if not gap_down.empty else 0.0,
+        "avg_after_gap_pct": (
+            float(gap_days["after_gap_pct"].mean()) if not gap_days.empty else 0.0
+        ),
+        "avg_after_gap_up_pct": (
+            float(gap_up["after_gap_pct"].mean()) if not gap_up.empty else 0.0
+        ),
+        "avg_after_gap_down_pct": (
+            float(gap_down["after_gap_pct"].mean()) if not gap_down.empty else 0.0
+        ),
+        "avg_max_up_pct": (
+            float(gap_up["max_up_pct"].mean()) if not gap_up.empty else 0.0
+        ),
+        "avg_max_down_pct": (
+            float(gap_down["max_down_pct"].mean()) if not gap_down.empty else 0.0
+        ),
+        "success_up_pct": (
+            (successful_gap_up_count / gap_up_count * 100) if gap_up_count else 0.0
+        ),
+        "success_down_pct": (
+            (successful_gap_down_count / gap_down_count * 100)
+            if gap_down_count
+            else 0.0
+        ),
+        "success_both_pct": (
+            (successful_gap_count / gap_count * 100) if gap_count else 0.0
+        ),
     }
 
 
@@ -140,9 +181,27 @@ def unique_output_path(filename: str | None) -> Path:
 def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
     """Limit gap summary columns to the requested report direction."""
     shared_columns = ["ticker", "days_analyzed"]
-    up_columns = ["gap_up_days", "gap_up_days_pct", "avg_after_gap_up_pct", "avg_max_up_pct"]
-    down_columns = ["gap_down_days", "gap_down_days_pct", "avg_after_gap_down_pct", "avg_max_down_pct"]
-    both_columns = ["gap_days", "gap_days_pct", "avg_gap_pct", "avg_after_gap_pct"]
+    up_columns = [
+        "gap_up_days",
+        "gap_up_days_pct",
+        "avg_after_gap_up_pct",
+        "avg_max_up_pct",
+        "success_up_pct",
+    ]
+    down_columns = [
+        "gap_down_days",
+        "gap_down_days_pct",
+        "avg_after_gap_down_pct",
+        "avg_max_down_pct",
+        "success_down_pct",
+    ]
+    both_columns = [
+        "gap_days",
+        "gap_days_pct",
+        "avg_gap_pct",
+        "avg_after_gap_pct",
+        "success_both_pct",
+    ]
 
     if report == "up":
         columns = shared_columns + up_columns
@@ -155,9 +214,16 @@ def filter_report_columns(summary: pd.DataFrame, report: str) -> pd.DataFrame:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Detect significant gap-up and gap-down days.")
-    parser.add_argument("ticker", nargs="+", help="Ticker symbol(s), or portfolio names prefixed with +")
-    parser.add_argument("--period", help="yfinance period string (e.g. 1y, 6mo) (overrides start/end if provided)")
+    parser = argparse.ArgumentParser(
+        description="Detect significant gap-up and gap-down days."
+    )
+    parser.add_argument(
+        "ticker", nargs="+", help="Ticker symbol(s), or portfolio names prefixed with +"
+    )
+    parser.add_argument(
+        "--period",
+        help="yfinance period string (e.g. 1y, 6mo) (overrides start/end if provided)",
+    )
     parser.add_argument("--start", help="Start date YYYY-MM-DD")
     parser.add_argument("--end", help="End date YYYY-MM-DD")
     parser.add_argument(
@@ -165,6 +231,16 @@ def main() -> None:
         type=float,
         default=0.0,
         help="Minimum absolute previous-close-to-open gap percentage required to count (default 0)",
+    )
+    parser.add_argument(
+        "--success",
+        type=float,
+        default=0.0,
+        help=(
+            "Open-to-close percentage threshold for success rates. Gap-up days count as successful "
+            "when after-gap pct is >= this value; gap-down days count when <= the negative value "
+            "(default 0)."
+        ),
     )
     parser.add_argument(
         "--report",
@@ -180,7 +256,11 @@ def main() -> None:
 
     tickers = expand_ticker_args(args.ticker)
     start, end = parse_date_range(args.period, args.start, args.end)
-    rows = [analyze_gaps(ticker, start, end, args.tolerance) for ticker in tickers]
+    cache_tag = f"{start.date()}_{end.date()}"
+    rows = [
+        analyze_gaps(ticker, start, end, args.tolerance, args.success, cache_tag)
+        for ticker in tickers
+    ]
     summary = filter_report_columns(round_numeric_cols(pd.DataFrame(rows)), args.report)
 
     if tabulate:
